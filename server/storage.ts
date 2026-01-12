@@ -1,15 +1,19 @@
 import { db } from "./db";
 import { 
-  tasks, logs, cookies, proxies, settings,
-  type Task, type InsertTask, type Log, type Cookie, type Proxy, type Setting,
+  users, tasks, logs, cookies, proxies, settings,
+  type User, type InsertUser, type Task, type InsertTask, type Log, type Cookie, type Proxy, type Setting,
   type InsertCookie, type InsertProxy, type InsertSetting
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
-import { authStorage, type IAuthStorage } from "./replit_integrations/auth";
 
-export interface IStorage extends IAuthStorage {
+export interface IStorage {
+  // Users
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+
   // Tasks
-  getTasks(userId: string): Promise<Task[]>;
+  getTasks(userId: number): Promise<Task[]>;
   getTask(id: number): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, updates: Partial<InsertTask>): Promise<Task>;
@@ -20,27 +24,37 @@ export interface IStorage extends IAuthStorage {
   createLog(log: typeof logs.$inferInsert): Promise<Log>;
 
   // Cookies
-  getCookies(userId: string): Promise<Cookie[]>;
+  getCookies(userId: number): Promise<Cookie[]>;
   createCookie(cookie: InsertCookie): Promise<Cookie>;
   deleteCookie(id: number): Promise<void>;
 
   // Proxies
-  getProxies(userId: string): Promise<Proxy[]>;
+  getProxies(userId: number): Promise<Proxy[]>;
   createProxy(proxy: InsertProxy): Promise<Proxy>;
   deleteProxy(id: number): Promise<void>;
 
   // Settings
-  getSettings(userId: string): Promise<Setting[]>;
+  getSettings(userId: number): Promise<Setting[]>;
   upsertSetting(setting: InsertSetting): Promise<Setting>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // Auth Delegation
-  getUser = authStorage.getUser.bind(authStorage);
-  upsertUser = authStorage.upsertUser.bind(authStorage);
+  // Users
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
 
   // Tasks
-  async getTasks(userId: string): Promise<Task[]> {
+  async getTasks(userId: number): Promise<Task[]> {
     return await db.select().from(tasks).where(eq(tasks.userId, userId)).orderBy(desc(tasks.createdAt));
   }
   async getTask(id: number): Promise<Task | undefined> {
@@ -72,7 +86,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Cookies
-  async getCookies(userId: string): Promise<Cookie[]> {
+  async getCookies(userId: number): Promise<Cookie[]> {
     return await db.select().from(cookies).where(eq(cookies.userId, userId));
   }
   async createCookie(cookie: InsertCookie): Promise<Cookie> {
@@ -84,7 +98,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Proxies
-  async getProxies(userId: string): Promise<Proxy[]> {
+  async getProxies(userId: number): Promise<Proxy[]> {
     return await db.select().from(proxies).where(eq(proxies.userId, userId));
   }
   async createProxy(proxy: InsertProxy): Promise<Proxy> {
@@ -96,7 +110,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Settings
-  async getSettings(userId: string): Promise<Setting[]> {
+  async getSettings(userId: number): Promise<Setting[]> {
     return await db.select().from(settings).where(eq(settings.userId, userId));
   }
   async upsertSetting(setting: InsertSetting): Promise<Setting> {
