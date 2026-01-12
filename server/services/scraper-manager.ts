@@ -37,9 +37,24 @@ export class ScraperManager {
   }
 
   async checkTasks() {
-    // In a real app, query tasks that are due
-    // const tasks = await this.storage.getDueTasks();
-    // For now, we rely on manual testing or user triggered runs
+    try {
+      const tasks = await this.storage.getAllTasks();
+      const now = new Date();
+      
+      for (const task of tasks) {
+        if (task.status !== 'active') continue;
+        
+        const lastRun = task.lastRun ? new Date(task.lastRun) : new Date(0);
+        const diffMinutes = (now.getTime() - lastRun.getTime()) / (1000 * 60);
+        
+        if (diffMinutes >= (task.interval || 60)) {
+          console.log(`Running scheduled task: ${task.id} (${task.platform})`);
+          this.runTask(task).catch(err => console.error(`Scheduled task ${task.id} failed:`, err));
+        }
+      }
+    } catch (e) {
+      console.error("Error checking tasks:", e);
+    }
   }
 
   async runTask(task: Task) {

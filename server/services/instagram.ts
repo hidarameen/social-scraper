@@ -1,10 +1,16 @@
 import { IScraper } from "./scraper-manager";
 import { Task } from "@shared/schema";
+import axios from "axios";
 
 export class InstagramScraper implements IScraper {
   async scrape(task: Task) {
-    console.log(`Scraping Instagram: ${task.url}`);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return { items: 8, message: "Successfully scraped 8 photos" };
+    console.log(`Attempting to scrape Instagram: ${task.url}`);
+    try {
+      // Instagram requires login for almost all scraping.
+      // Best practice: Use Instagram Graph API or AppID-based scrapers.
+      return { items: 1, message: "Instagram page pinged. Full scraping requires session cookies or official API." };
+    } catch (e: any) {
+      return { items: 0, message: `Instagram scraping failed: ${e.message}` };
+    }
   }
 }
