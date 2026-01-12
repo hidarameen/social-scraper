@@ -13,7 +13,25 @@ export class FacebookScraper implements IScraper {
       const userCookies = await storage.getCookies(task.userId);
       const fbCookies = userCookies
         .filter(c => c.platform === 'facebook')
-        .map(c => `${c.name}=${c.value}`)
+        .map(c => {
+          // If it's a Netscape cookie file format, parse it
+          if (c.value.includes('\t') || c.value.includes('TRUE') || c.value.includes('FALSE')) {
+            return c.value
+              .split('\n')
+              .filter(line => line && !line.startsWith('#'))
+              .map(line => {
+                const parts = line.split(/\s+/);
+                if (parts.length >= 7) {
+                  return `${parts[5]}=${parts[6]}`;
+                }
+                return '';
+              })
+              .filter(Boolean)
+              .join('; ');
+          }
+          // Otherwise assume it's a simple name=value or JSON
+          return `${c.name}=${c.value}`;
+        })
         .join('; ');
 
       // 2. Fetch available proxies
