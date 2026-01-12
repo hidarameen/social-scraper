@@ -13,7 +13,7 @@ export const scrapeMethods = ["api", "html", "browser"] as const;
 
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id), 
+  userId: integer("userId").notNull().references(() => users.id), 
   platform: text("platform", { enum: platforms }).notNull(),
   url: text("url").notNull(),
   target: text("target"), 
@@ -36,7 +36,7 @@ export const logs = pgTable("logs", {
 
 export const cookies = pgTable("cookies", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("userId").notNull().references(() => users.id),
   platform: text("platform", { enum: platforms }).notNull(),
   value: text("value").notNull(),
   name: text("name").notNull(), 
@@ -44,14 +44,14 @@ export const cookies = pgTable("cookies", {
 
 export const proxies = pgTable("proxies", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("userId").notNull().references(() => users.id),
   url: text("url").notNull(), 
   platform: text("platform", { enum: platforms }), 
 });
 
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("userId").notNull().references(() => users.id),
   key: text("key").notNull().unique(), 
   value: text("value").notNull(),
 });
