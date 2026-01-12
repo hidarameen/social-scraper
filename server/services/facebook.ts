@@ -15,22 +15,24 @@ export class FacebookScraper implements IScraper {
         .filter(c => c.platform === 'facebook')
         .map(c => {
           // If it's a Netscape cookie file format, parse it
-          if (c.value.includes('\t') || c.value.includes('TRUE') || c.value.includes('FALSE')) {
+          if (c.value.includes('\t') || (c.value.includes('TRUE') && c.value.includes('FALSE'))) {
             return c.value
               .split('\n')
-              .filter(line => line && !line.startsWith('#'))
+              .filter(line => line.trim() && !line.startsWith('#'))
               .map(line => {
                 const parts = line.split(/\s+/);
                 if (parts.length >= 7) {
-                  return `${parts[5]}=${parts[6]}`;
+                  const name = parts[5].trim();
+                  const value = parts[6].trim();
+                  return `${name}=${value}`;
                 }
                 return '';
               })
               .filter(Boolean)
               .join('; ');
           }
-          // Otherwise assume it's a simple name=value or JSON
-          return `${c.name}=${c.value}`;
+          // Handle name=value or JSON/raw string
+          return c.value.includes('=') ? c.value : `${c.name}=${c.value}`;
         })
         .join('; ');
 
@@ -38,11 +40,23 @@ export class FacebookScraper implements IScraper {
       const userProxies = await storage.getProxies(task.userId);
       const proxyUrl = userProxies.length > 0 ? userProxies[0].url : undefined;
 
-      // 3. Configure headers to mimic a real mobile browser (often easier to scrape)
+      // 3. Configure headers to mimic a real modern desktop browser
       const headers: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Connection': 'keep-alive',
       };
 
       if (fbCookies) {
