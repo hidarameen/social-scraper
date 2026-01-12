@@ -43,13 +43,14 @@ export async function registerRoutes(
   const scraperManager = new ScraperManager(storage);
   scraperManager.start();
 
-  // Seed on first user access
-  app.use(async (req: any, res, next) => {
-    if (req.isAuthenticated()) {
-      await seedDatabase(req.user.id);
-    }
-    next();
-  });
+  // Seed on first user access (only if requested or missing, but avoid middleware)
+  // Replaced middleware seed with a one-time check if needed, but for now removing from global middleware
+  // app.use(async (req: any, res, next) => {
+  //   if (req.isAuthenticated()) {
+  //     await seedDatabase(req.user.id);
+  //   }
+  //   next();
+  // });
 
   // --- Tasks Routes ---
   app.get(api.tasks.list.path, isAuthenticated, async (req, res) => {
