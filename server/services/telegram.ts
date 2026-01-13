@@ -140,7 +140,7 @@ export class TelegramService {
                     caption: message, 
                     parse_mode: 'HTML',
                     supports_streaming: true,
-                    duration: meta.duration,
+                    duration: meta.duration || 0, // Ensure duration is at least 0
                     width: meta.width,
                     height: meta.height
                   };
