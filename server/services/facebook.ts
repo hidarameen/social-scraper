@@ -227,9 +227,12 @@ export class FacebookScraper {
             }
           }
 
-          // Fallback to content hash if no unique ID found
+          // Fallback to simple hash if no unique ID found (Buffer is not available in browser context)
           if (!postId) {
-            postId = Buffer.from(postText.substring(0, 100)).toString('base64').substring(0, 32);
+            postId = postText.substring(0, 100).split('').reduce((a, b) => {
+              a = ((a << 5) - a) + b.charCodeAt(0);
+              return a & a;
+            }, 0).toString(36);
           }
 
           // Find Media
