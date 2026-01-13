@@ -202,28 +202,32 @@ export class FacebookScraper {
 
           // Find Link
           const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"], a[href*="/story.php"]');
-          const postUrl = link ? (link as HTMLAnchorElement).href : '';
-
-          // Find Media
-          const img = container.querySelector('img[src^="http"]:not([src*="static.xx.fbcdn.net"])');
-          // Improved video detection: search for video elements or common video containers/links
-          let videoUrl = '';
-          const videoEl = container.querySelector('video');
-          if (videoEl) {
-            videoUrl = (videoEl as HTMLVideoElement).src;
-          }
+          let postUrl = link ? (link as HTMLAnchorElement).href : '';
           
-          // If no direct video src, check for links that look like video/reel/watch links
-          if (!videoUrl) {
-            const videoLink = container.querySelector('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]');
-            if (videoLink) {
-              videoUrl = (videoLink as HTMLAnchorElement).href;
+          // Improved ID extraction using platform-specific patterns
+          let postId = '';
+          if (postUrl) {
+            const urlObj = new URL(postUrl);
+            const pathParts = urlObj.pathname.split('/').filter(Boolean);
+            
+            if (postUrl.includes('/posts/')) {
+              postId = pathParts[pathParts.indexOf('posts') + 1];
+            } else if (postUrl.includes('/permalink.php')) {
+              postId = urlObj.searchParams.get('story_fbid') || urlObj.searchParams.get('id') || '';
+            } else if (postUrl.includes('/reel/') || postUrl.includes('/videos/')) {
+              postId = pathParts[pathParts.length - 1];
             }
+          }
+
+          // Fallback to content hash if no unique ID found
+          if (!postId) {
+            postId = Buffer.from(postText.substring(0, 100)).toString('base64').substring(0, 32);
           }
 
           results.push({
             text: postText,
-            url: postUrl,
+            url: postUrl || task.url,
+            id: postId,
             image: img ? (img as HTMLImageElement).src : '',
             video: videoUrl,
             platform: 'Facebook',

@@ -86,9 +86,8 @@ export class ScraperManager {
       let duplicateInBatchCount = 0;
 
       for (const p of allPosts) {
-        // IMPROVED: Use URL if available, fallback to text-based hash to ensure stability across runs
-        const textHash = (p.text || '').substring(0, 100).replace(/\s+/g, '');
-        const pid = (p.url || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop() || textHash;
+        // IMPROVED: Use platform-provided ID, fallback to stable hash
+        const pid = p.id || (p.url || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
         
         p.normalizedId = pid;
         if (pid && !seenInBatch.has(pid)) {
