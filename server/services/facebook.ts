@@ -104,7 +104,7 @@ export class FacebookScraper {
                   await page.waitForTimeout(300);
                 }
               }
-            } catch (e) {}
+            } catch (error) {}
           }
         };
 
