@@ -1,210 +1,137 @@
-import { IScraper } from "./scraper-manager";
+import { chromium } from 'playwright';
 import { Task } from "@shared/schema";
-import axios from "axios";
-import * as cheerio from "cheerio";
 import { storage } from "../storage";
 
-export class FacebookScraper implements IScraper {
+export class FacebookScraper {
   async scrape(task: Task) {
-    console.log(`Attempting to scrape Facebook: ${task.url}`);
+    console.log(`[Browser Scraper] Attempting to scrape Facebook: ${task.url}`);
     
+    let browser;
     try {
       // 1. Fetch available cookies for this user and platform
       const userCookies = await storage.getCookies(task.userId);
-      const fbCookies = userCookies
-        .filter(c => c.platform === 'facebook')
-        .map(c => {
-          // If it's a Netscape cookie file format, parse it
-          // Standard Netscape starts with # Netscape, but some exporters add prefixes
-          if (c.value.includes('\t') || c.value.toLowerCase().includes('netscape')) {
-            return c.value
-              .split('\n')
+      const fbCookies = userCookies.filter(c => c.platform === 'facebook');
+
+      browser = await chromium.launch({ 
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1280, height: 800 }
+      });
+
+      // Add cookies if available
+      if (fbCookies.length > 0) {
+        console.log(`[Browser Scraper] Adding ${fbCookies.length} cookies to browser context`);
+        const playwrightCookies = fbCookies.flatMap(c => {
+          if (c.value.includes('\t')) { // Netscape format
+            return c.value.split('\n')
               .map(line => line.trim())
               .filter(line => line && !line.startsWith('#'))
               .map(line => {
                 const parts = line.split(/\s+/);
-                // Netscape format: domain, flag, path, secure, expiration, name, value
                 if (parts.length >= 7) {
-                  const name = parts[5].trim();
-                  const value = parts[6].trim();
-                  return `${name}=${value}`;
+                  return {
+                    name: parts[5].trim(),
+                    value: parts[6].trim(),
+                    domain: parts[0].trim().startsWith('.') ? parts[0].trim() : `.${parts[0].trim()}`,
+                    path: parts[2].trim(),
+                    expires: parseInt(parts[4].trim()) || -1,
+                    httpOnly: false,
+                    secure: parts[3].trim().toUpperCase() === 'TRUE'
+                  };
                 }
-                return '';
-              })
-              .filter(Boolean)
-              .join('; ');
+                return null;
+              }).filter(Boolean);
           }
-          // Handle name=value or JSON/raw string
-          // Remove any non-ASCII or control characters that might break headers
-          const cleanValue = c.value.replace(/[\r\n\t]/g, ' ').replace(/[^\x20-\x7E]/g, '').trim();
-          return cleanValue.includes('=') ? cleanValue : `${c.name}=${cleanValue}`;
-        })
-        .filter(Boolean)
-        .join('; ');
-
-      // 2. Fetch available proxies
-      const userProxies = await storage.getProxies(task.userId);
-      const proxyUrl = userProxies.length > 0 ? userProxies[0].url : undefined;
-
-      // 3. Configure headers to mimic a real modern desktop browser
-      const headers: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Connection': 'keep-alive',
-      };
-
-      if (fbCookies) {
-        headers['Cookie'] = fbCookies;
-        console.log("Using provided cookies for Facebook scraping.");
+          return [{
+            name: c.name || 'session',
+            value: c.value,
+            domain: '.facebook.com',
+            path: '/'
+          }];
+        }) as any[];
+        
+        await context.addCookies(playwrightCookies);
       }
 
-      // 4. Perform request
-      console.log(`Requesting URL: ${task.url} with headers...`);
-      const response = await axios.get(task.url, {
-        headers,
-        timeout: 15000,
-        validateStatus: (status) => status < 500, // Handle 400s manually for better error info
-      });
-
-      if (response.status >= 400) {
-        throw new Error(`Facebook returned status ${response.status}. This usually means your request was flagged as a bot. Use fresh Cookies or a Proxy.`);
-      }
-
-      const $ = cheerio.load(response.data);
-      const posts: { text: string, url: string }[] = [];
+      const page = await context.newPage();
       
-      $('[role="article"]').each((i, el) => {
-        if (i >= (task.postLimit || 10)) return;
-        
-        // Try multiple selectors for post content
-        const postTextEl = $(el).find('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent').first();
-        
-        // Find the "See more" or "عرض المزيد" button before removing it to use it for expansion if possible
-        // Note: In static HTML scraping, we can't truly expand, but we can avoid partial text
-        postTextEl.find('[role="button"], .see-more').remove();
-        
-        let postText = postTextEl.text().trim();
-        
-        // If not found, try a more generic but restricted search
-        if (!postText) {
-          const genericTextEl = $(el).find('div[dir="auto"]').first();
-          genericTextEl.find('[role="button"], .see-more').remove();
-          postText = genericTextEl.text().trim();
-        }
+      // Navigate to the URL
+      console.log(`[Browser Scraper] Navigating to ${task.url}...`);
+      await page.goto(task.url, { waitUntil: 'networkidle', timeout: 60000 });
 
-        // Improved link extraction to find the REAL permalink
-        const postLinkEl = $(el).find('a').filter((_, a) => {
-          const href = $(a).attr('href') || '';
-          return (href.includes('/posts/') || href.includes('/permalink.php') || href.includes('/groups/') || href.includes('/reel/') || href.includes('/videos/')) && 
-                 !href.includes('/groups/feeds/') && !href.includes('/events/') && !href.includes('/photos/') && !href.includes('/about/');
-        }).first();
+      // Wait for content to load
+      try {
+        await page.waitForSelector('[role="article"]', { timeout: 10000 });
+      } catch (e) {
+        console.log("[Browser Scraper] Timeout waiting for articles, might be a different layout or blocked.");
+      }
+
+      // Extract posts
+      const posts = await page.evaluate((limit) => {
+        const results: any[] = [];
+        const articles = document.querySelectorAll('[role="article"]');
         
-        const postLink = postLinkEl.attr('href');
-        let postId = '';
-        if (postLink) {
-          const match = postLink.match(/(?:posts\/|permalink\.php\?story_fbid=|reel\/|videos\/)(\d+)/) || postLink.match(/\/(\d+)\/?$/);
-          postId = match ? match[1] : postLink;
-        }
-
-        // Clean postId to remove tracking parameters
-        if (postId) {
-          postId = postId.split(/[?&]/)[0];
-        }
-
-        // Try to find a high-quality image in the post
-        const postImage = $(el).find('img').filter((_, img) => {
-          const src = $(img).attr('src');
-          const width = parseInt($(img).attr('width') || '0');
-          // Filter out small icons, emojis, and tracking pixels
-          return !!(src && src.startsWith('http') && !src.includes('static.xx.fbcdn.net') && (width > 100 || !width));
-        }).first().attr('src');
-        
-        // Try to find a video in the post - improved selectors including Reels
-        let postVideo = $(el).find('video').first().attr('src') || 
-                          $(el).find('video source').first().attr('src') ||
-                          $(el).find('[data-video-url]').first().attr('data-video-url');
-
-        // Fallback to link-based video discovery if direct src is not found or is a blob
-        if (!postVideo || postVideo.startsWith('blob:')) {
-          // Look for specific video/reel links within the post container only
-          const videoLink = $(el).find('a').filter((_, link) => {
-            const href = $(link).attr('href') || '';
-            const isVideoLink = href.includes('/videos/') || href.includes('/watch/') || href.includes('/reel/');
-            const isNotNav = !href.includes('/groups/') && !href.includes('/events/') && !href.includes('/photos/') && !href.includes('/about/');
-            return isVideoLink && isNotNav;
-          }).first().attr('href');
-
-          if (videoLink) {
-            postVideo = videoLink.startsWith('http') ? videoLink : `https://www.facebook.com${videoLink.startsWith('/') ? '' : '/'}${videoLink}`;
-          }
-        }
-
-        // Final verification: ensure we didn't just grab a profile link or something generic
-        if (postVideo && (postVideo.includes('/permalink.php') || postVideo.includes('/posts/')) && !postVideo.includes('video') && !postVideo.includes('reel')) {
-           // If we got a post link instead of a video link, check if there's a more specific one
-           const betterLink = $(el).find('a').filter((_, a) => {
-             const href = $(a).attr('href') || '';
-             return href.includes('/reel/') || href.includes('/videos/') || href.includes('/watch/');
-           }).first().attr('href');
-           
-           if (betterLink) {
-             postVideo = betterLink.startsWith('http') ? betterLink : `https://www.facebook.com${betterLink.startsWith('/') ? '' : '/'}${betterLink}`;
-           }
-        }
-        
-        if (postText || postImage || postVideo) {
-          // Clean up text: remove "See more" etc if present at the end
-          postText = postText.replace(/See more$/i, '').trim();
+        for (let i = 0; i < Math.min(articles.length, limit || 10); i++) {
+          const el = articles[i];
           
+          // Basic selectors
+          const textEl = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent');
+          let postText = textEl ? textEl.textContent?.trim() : '';
+          
+          if (!postText) {
+            const genericText = el.querySelector('div[dir="auto"]');
+            postText = genericText ? genericText.textContent?.trim() : '';
+          }
+
+          const linkEl = Array.from(el.querySelectorAll('a')).find(a => {
+            const href = a.getAttribute('href') || '';
+            return href.includes('/posts/') || href.includes('/permalink.php') || href.includes('/reel/') || href.includes('/videos/');
+          });
+          
+          const postLink = linkEl ? linkEl.getAttribute('href') : '';
+          const imgEl = el.querySelector('img[src^="http"]');
+          const postImage = imgEl ? imgEl.getAttribute('src') : '';
+          
+          const videoEl = el.querySelector('video');
+          const postVideo = videoEl ? (videoEl.getAttribute('src') || '') : '';
+
           if (postText || postImage || postVideo) {
-            console.log(`Facebook Scraper: Found content. Text: ${!!postText}, Image: ${!!postImage}, Video URL: ${postVideo}`);
-            
-            posts.push({
-              id: postId || (postVideo ? postVideo.split('/').pop() : ''),
-              text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
-              url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : (postVideo || task.url),
-              image: postImage,
-              video: postVideo,
-              accountName: task.url.split('/').pop() || 'Facebook User',
+            results.push({
+              text: postText || '',
+              url: postLink || '',
+              image: postImage || '',
+              video: postVideo || '',
               platform: 'Facebook',
               date: new Date().toLocaleString('ar-EG')
             });
           }
         }
-      });
+        return results;
+      }, task.postLimit);
 
-      const postCount = posts.length;
+      await browser.close();
 
-      if (postCount === 0 && !fbCookies) {
-        throw new Error("No posts found. You likely need cookies to view this profile.");
-      }
-
-      return { 
-        items: postCount, 
-        message: `Scraped ${postCount} posts from Facebook. ${fbCookies ? '(Using Cookies)' : '(Public View)'}`,
-        data: posts
+      return {
+        items: posts.length,
+        message: `Scraped ${posts.length} posts from Facebook using Browser.`,
+        data: posts.map(p => ({
+          ...p,
+          id: p.url.split('/').pop() || Math.random().toString(36).substring(7),
+          url: p.url.startsWith('http') ? p.url : `https://facebook.com${p.url}`,
+          accountName: task.url.split('/').pop() || 'Facebook User'
+        }))
       };
+
     } catch (error: any) {
-      console.error("Facebook scraping error:", error.message);
-      
-      let hint = "Try adding session cookies in the Cookies page to bypass blocks.";
-      if (error.response?.status === 400) hint = "Facebook returned a 400 error. This usually means the URL is invalid or the bot detection is high. Check your URL or use cookies.";
-      
-      return { 
-        items: 0, 
-        message: `Facebook Blocked: ${error.message}. ${hint}` 
+      if (browser) await browser.close();
+      console.error("[Browser Scraper] Error:", error.message);
+      return {
+        items: 0,
+        message: `Browser Scraper Error: ${error.message}`
       };
     }
   }

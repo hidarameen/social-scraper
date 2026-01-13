@@ -22,7 +22,7 @@ export class ScraperManager {
     this.storage = storage;
     this.telegram = new TelegramService(storage);
     this.scrapers = {
-      facebook: new FacebookScraper(),
+      facebook: new FacebookScraper() as any,
       twitter: new TwitterScraper(),
       instagram: new InstagramScraper(),
       youtube: new YoutubeScraper(),
