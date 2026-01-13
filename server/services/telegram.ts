@@ -22,7 +22,12 @@ export class TelegramService {
       
       // Target can be a channel ID or username (starting with @)
       // Ensure target is a string and clean it
-      const chatId = target.toString().trim();
+      let chatId = target.toString().trim();
+      
+      // Automatically prepend @ if it looks like a username and is missing it
+      if (!chatId.startsWith('@') && !chatId.startsWith('-') && isNaN(Number(chatId))) {
+        chatId = `@${chatId}`;
+      }
       
       await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
       console.log(`Telegram message sent to ${target}`);
