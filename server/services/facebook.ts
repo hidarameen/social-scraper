@@ -17,10 +17,8 @@ export class FacebookScraper {
     let browser;
     try {
       const useBrowser = task.scrapeMethod === 'browser';
-      console.log(`[Facebook Scraper] [${task.id}] Method: ${task.scrapeMethod}`);
       
       if (!useBrowser) {
-        console.log(`[Facebook Scraper] [${task.id}] Using legacy method`);
         return this.scrapeLegacy(task);
       }
 
@@ -90,7 +88,7 @@ export class FacebookScraper {
       
       try {
         // Wait for article or main content with a longer timeout
-        await page.waitForSelector('[role="article"], div[data-pagelet^="FeedUnit"], .x1yzt60.x1n2onr6', { timeout: 45000 });
+        await page.waitForSelector('[role="article"]', { timeout: 45000 });
         
         // Comprehensive "See More" expansion
         const expand = async () => {
@@ -159,40 +157,21 @@ export class FacebookScraper {
         const seenTexts = new Set();
         
         // Find article containers - strictly targeting posts
-        const containers = Array.from(document.querySelectorAll('[role="article"], div[data-testid="fbfeed_story"], .x1yzt60.x1n2onr6, div.x1lliihq, .x9f619.x1n2onr6.x1ja2u2z.x78zum5.xdt5ytf.x193iq5w.xeuug22.x1iyjqo2.xs83m0k.x150jy0e.x1at935a.x1bc0f98.x1048u1x.xng8ra, div[data-pagelet^="FeedUnit"]')).filter(el => {
+        const containers = Array.from(document.querySelectorAll('[role="article"]')).filter(el => {
           // Filter out elements that are likely comments, headers, or sidebar elements
           const isComment = el.closest('[role="complementary"]') || 
                            el.closest('[aria-label*="Comment"]') || 
                            el.closest('[aria-label*="تعليق"]') ||
                            el.getAttribute('aria-label')?.includes('Comment') ||
                            el.getAttribute('aria-label')?.includes('تعليق') ||
-                           el.querySelector('[role="complementary"]') ||
-                           el.innerText.includes('تعليق باسم') ||
-                           el.innerText.includes('التعليق باسم');
+                           el.classList.contains('x1lliihq') ||
+                           el.querySelector('[role="complementary"]');
           
           // Must have a message area to be considered a main post
-          const messageSelectors = [
-            '[data-ad-comet-preview="message"]',
-            '[data-ad-preview="message"]',
-            '.userContent',
-            'div[dir="auto"]',
-            '[data-testid="post_message"]',
-            '.x1iorvi4',
-            '.xdj266r',
-            '.x1n2onr6',
-            '.x1yzt60',
-            '.xzsf02u',
-            '.x193iq5w'
-          ];
-          const hasMessage = messageSelectors.some(sel => el.querySelector(sel) || el.matches(sel));
+          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
           
-          // Verify it's a top-level post container
-          const isTopLevel = el.hasAttribute('aria-posinset') || 
-                            el.closest('[data-pagelet*="FeedUnit"]') || 
-                            el.parentElement?.closest('[role="article"]') === null ||
-                            el.matches('.x1yzt60.x1n2onr6') ||
-                            el.matches('.x9f619.x1n2onr6.x1ja2u2z.x78zum5.xdt5ytf.x193iq5w.xeuug22.x1iyjqo2.xs83m0k.x150jy0e.x1at935a.x1bc0f98.x1048u1x.xng8ra') ||
-                            el.matches('div[data-pagelet^="FeedUnit"]');
+          // Verify it's a top-level post container (usually has aria-posinset or specific data attributes)
+          const isTopLevel = el.hasAttribute('aria-posinset') || el.closest('[data-pagelet*="FeedUnit"]') || el.parentElement?.closest('[role="article"]') === null;
 
           return !isComment && hasMessage && isTopLevel;
         });
@@ -210,11 +189,7 @@ export class FacebookScraper {
             '.x1iorvi4',
             '.x1yzt60 .x1n2onr6',
             'div.xdj266r',
-            'div[style*="text-align"]',
-            'div[dir="auto"]',
-            '.x1n2onr6',
-            '.xzsf02u',
-            '.x193iq5w'
+            'div[style*="text-align"]'
           ];
 
           let postText = '';
@@ -223,25 +198,8 @@ export class FacebookScraper {
             if (el) {
               const clone = el.cloneNode(true) as HTMLElement;
               // Remove "See more" text, buttons, and other metadata that shouldn't be in the text body
-              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"], [aria-label*="تعليق"]').forEach(b => b.remove());
-              
-              // Remove "Commented on by" or similar notification text if it's inside the message area
-              const textToExclude = ['تم التعليق بواسطة', 'Commented on by', 'قام بالتعليق', 'التعليق باسم', 'تعليق باسم'];
-              textToExclude.forEach(term => {
-                clone.querySelectorAll('*').forEach(child => {
-                  if (child.textContent?.includes(term)) {
-                    child.remove();
-                  }
-                });
-              });
-
-              let content = clone.textContent?.trim() || '';
-              // Additional cleanup for cases where the text might be at the end of the content but not in its own element
-              textToExclude.forEach(term => {
-                // Use a more precise regex to clean up common patterns like "(اسم الحساب) تعليق باسم"
-                const regex = new RegExp(`.*${term}.*$`, 'gm');
-                content = content.replace(regex, '').trim();
-              });
+              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"]').forEach(b => b.remove());
+              const content = clone.textContent?.trim() || '';
               if (content.length > 5) {
                 postText = content;
                 break; // Found the primary text container, stop looking
@@ -318,7 +276,6 @@ export class FacebookScraper {
       for (const p of posts) {
         try {
           const shortText = p.text.substring(0, 60).replace(/\n/g, ' ') + "...";
-          console.log(`[Facebook Scraper] [${task.id}] Extracted post: ${shortText}`);
           await this.storage.createLog({
             taskId: task.id,
             status: "running",

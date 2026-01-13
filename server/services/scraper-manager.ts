@@ -75,12 +75,10 @@ export class ScraperManager {
         message: "Starting scrape...",
       });
 
-      console.log(`[ScraperManager] [Task ${task.id}] Running scrape for ${task.platform}`);
       const result = await scraper.scrape(task);
       
       let allPosts = result.data || [];
       if (!Array.isArray(allPosts)) allPosts = [];
-      console.log(`[ScraperManager] [Task ${task.id}] Scraper found ${allPosts.length} posts`);
 
       // Deduplicate within the current batch first
       const uniqueBatch = [];
@@ -97,19 +95,11 @@ export class ScraperManager {
           uniqueBatch.push(p);
         } else {
           duplicateInBatchCount++;
-        }
-      }
-
-      if (duplicateInBatchCount > 0) {
-        console.log(`[ScraperManager] [Task ${task.id}] Batch Deduplication: Removed ${duplicateInBatchCount} duplicates`);
-        try {
           await this.storage.createLog({
             taskId: task.id,
-            status: "running",
-            message: `Filtered ${duplicateInBatchCount} duplicate posts within this batch.`,
+            status: "duplicate",
+            message: `Skipped duplicate post in batch: ${pid || 'unknown'}`,
           });
-        } catch (e) {
-          console.error("Log error:", e);
         }
       }
 
@@ -120,25 +110,20 @@ export class ScraperManager {
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
           newPosts.push(post);
-        } else {
-          alreadySentCount++;
-        }
-      }
-
-      if (alreadySentCount > 0) {
-        console.log(`[ScraperManager] [Task ${task.id}] DB Filter: ${alreadySentCount} posts already sent`);
-        try {
           await this.storage.createLog({
             taskId: task.id,
-            status: "running",
-            message: `Found ${alreadySentCount} posts that were already sent previously.`,
+            status: "found",
+            message: `Found new post: ${post.normalizedId}`,
           });
-        } catch (e) {
-          console.error("Log error:", e);
+        } else {
+          alreadySentCount++;
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "skipped",
+            message: `Post already sent: ${post.normalizedId}`,
+          });
         }
       }
-
-      console.log(`[ScraperManager] [Task ${task.id}] Final tally: ${newPosts.length} new posts to send`);
 
       await this.storage.createLog({
         taskId: task.id,
@@ -156,11 +141,9 @@ export class ScraperManager {
 
       // Send to Telegram if new items found
       if (task.target && newPosts.length > 0) {
-        console.log(`[ScraperManager] [Task ${task.id}] Sending ${newPosts.length} posts to Telegram: ${task.target}`);
         // Send in reverse order so newest is last in Telegram
         for (const post of [...newPosts].reverse()) {
           try {
-            console.log(`[ScraperManager] [Task ${task.id}] Sending post ID: ${post.normalizedId}`);
             let notifyMsg = task.messageTemplate || `<b>[ScrapeMaster]</b>\nPlatform: {platform}\nURL: {url}\n\n{text}\n\n<a href="{url}">View Post</a>`;
             
             // Replace placeholders safely
@@ -184,9 +167,20 @@ export class ScraperManager {
             // Mark as sent in DB
             await this.storage.markPostAsSent(task.id, post.normalizedId);
             
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "sent",
+              message: `Successfully sent post to Telegram: ${post.normalizedId}`,
+            });
+
             await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (sendErr: any) {
             console.error(`Failed to send post ${post.normalizedId}:`, sendErr.message);
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "error",
+              message: `Failed to send post ${post.normalizedId}: ${sendErr.message}`,
+            });
           }
         }
       }
