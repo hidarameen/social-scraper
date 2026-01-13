@@ -9,7 +9,7 @@ async function test() {
   const mockTask = {
     id: 999,
     userId: 1, // Assuming admin or first user
-    url: "https://www.facebook.com/replit",
+    url: "https://www.facebook.com/aljazeerachannel",
     platform: "facebook",
     status: "active",
     interval: 60,

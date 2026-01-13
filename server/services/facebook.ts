@@ -4,7 +4,7 @@ import { storage } from "../storage";
 
 export class FacebookScraper {
   async scrape(task: Task) {
-    console.log(`[Browser Scraper] Attempting to scrape Facebook: ${task.url}`);
+    console.log(`[Browser Scraper] Starting: ${task.url}`);
     
     let browser;
     try {
@@ -21,111 +21,173 @@ export class FacebookScraper {
       
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        viewport: { width: 1280, height: 800 }
+        viewport: { width: 1280, height: 800 },
+        locale: 'ar-EG'
       });
 
       if (fbCookies.length > 0) {
         const playwrightCookies = fbCookies.flatMap(c => {
-          if (c.value.includes('\t')) {
-            return c.value.split('\n')
-              .map(line => line.trim())
-              .filter(line => line && !line.startsWith('#'))
-              .map(line => {
-                const parts = line.split(/\s+/);
-                if (parts.length >= 7) {
-                  return {
-                    name: parts[5].trim(),
-                    value: parts[6].trim(),
-                    domain: parts[0].trim().startsWith('.') ? parts[0].trim() : `.${parts[0].trim()}`,
-                    path: parts[2].trim() || '/',
-                    expires: parseInt(parts[4].trim()) || -1,
-                    httpOnly: false,
-                    secure: parts[3].trim().toUpperCase() === 'TRUE'
-                  };
-                }
-                return null;
-              }).filter(Boolean);
-          }
-          return [{
-            name: c.name || 'session',
-            value: c.value,
-            domain: '.facebook.com',
-            path: '/',
-            secure: true
-          }];
-        }) as any[];
+          try {
+            const rawValue = c.value.replace(/^loc#/, '#').trim();
+            if (rawValue.includes('\t') || rawValue.includes('Netscape')) {
+              return rawValue.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+                .map(line => {
+                  const parts = line.split(/\s+/);
+                  if (parts.length >= 7) {
+                    let domain = parts[0].trim();
+                    // Playwright strict domain: remove leading dot for compatibility if needed
+                    domain = domain.startsWith('.') ? domain : `.${domain}`;
+                    
+                    return {
+                      name: parts[5].trim(),
+                      value: parts[6].trim(),
+                      domain: domain,
+                      path: parts[2].trim() || '/',
+                      secure: parts[3].trim().toUpperCase() === 'TRUE',
+                      httpOnly: false,
+                      sameSite: 'Lax' as const
+                    };
+                  }
+                  return null;
+                }).filter(Boolean);
+            }
+            return [{
+              name: c.name || 'session',
+              value: c.value,
+              domain: '.facebook.com',
+              path: '/',
+              secure: true,
+              sameSite: 'Lax' as const
+            }];
+          } catch (e) { return []; }
+        }).filter((cookie: any) => cookie && cookie.name && cookie.value && cookie.domain);
         
-        await context.addCookies(playwrightCookies).catch(e => console.error("Cookie Error:", e.message));
+        if (playwrightCookies.length > 0) {
+          await context.addCookies(playwrightCookies as any).catch(err => {
+            console.error("[Browser Scraper] Cookie injection failed, continuing without them...");
+          });
+        }
       }
 
       const page = await context.newPage();
-      await page.goto(task.url, { waitUntil: 'networkidle', timeout: 60000 });
-
+      // Use domcontentloaded for faster start, then wait for specific elements
+      await page.goto(task.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      
       try {
-        await page.waitForSelector('[role="article"]', { timeout: 15000 });
+        // Wait for any article or feed content
+        await page.waitForSelector('[role="article"], div[data-testid="post_message"], div[class*="x1yztubf"]', { timeout: 15000 });
         
-        // Find and click "See More" buttons
-        const seeMoreButtons = await page.$$('div[role="button"]:has-text("See more"), div[role="button"]:has-text("عرض المزيد")');
-        for (const button of seeMoreButtons) {
-          await button.click().catch(() => {});
-          await page.waitForTimeout(500);
-        }
-        
-        await page.evaluate(() => window.scrollBy(0, 1000));
-        await page.waitForTimeout(2000);
-      } catch (e) {}
+        // Comprehensive "See More" expansion
+        const expand = async () => {
+          const seeMoreSelectors = [
+            'div[role="button"]:has-text("See more")',
+            'div[role="button"]:has-text("عرض المزيد")',
+            'div[role="button"]:has-text("... See more")',
+            '.see_more_link',
+            'text="عرض المزيد"',
+            'text="See more"'
+          ];
+          
+          for (const sel of seeMoreSelectors) {
+            try {
+              const elements = await page.$$(sel);
+              for (const el of elements) {
+                if (await el.isVisible()) {
+                  await el.click({ force: true, timeout: 1000 }).catch(() => {});
+                  await page.waitForTimeout(300);
+                }
+              }
+            } catch (e) {}
+          }
+        };
+
+        await expand();
+        // Single scroll to load a few more and trigger lazy expansion
+        await page.evaluate(() => window.scrollBy(0, 1200));
+        await page.waitForTimeout(1000);
+        await expand(); 
+      } catch (e) {
+        console.log("[Browser Scraper] Content wait warning:", e.message);
+      }
 
       const posts = await page.evaluate((limit) => {
         const results: any[] = [];
-        const articles = document.querySelectorAll('[role="article"]');
+        const seenTexts = new Set();
         
-        for (let i = 0; i < Math.min(articles.length, limit || 10); i++) {
-          const el = articles[i];
-          const textSelectors = ['[data-ad-comet-preview="message"]', '[data-ad-preview="message"]', '.userContent', 'div[dir="auto"]'];
+        // Find article containers or text blocks
+        const containers = Array.from(document.querySelectorAll('[role="article"], div[data-testid="post_message"], div[class*="x1yztubf"]'));
+        
+        for (const container of containers) {
+          if (results.length >= (limit || 10)) break;
+
+          // Extract text from common Facebook post structures
+          const textSelectors = [
+            '[data-ad-comet-preview="message"]',
+            '[data-ad-preview="message"]',
+            '.userContent',
+            'div[dir="auto"]',
+            '[data-testid="post_message"]'
+          ];
+
           let postText = '';
-          
-          for (const selector of textSelectors) {
-            const textEl = el.querySelector(selector);
-            if (textEl) {
-              const clone = textEl.cloneNode(true) as HTMLElement;
-              clone.querySelectorAll('[role="button"], .see-more').forEach(b => b.remove());
-              postText = clone.textContent?.trim() || '';
-              if (postText) break;
+          for (const sel of textSelectors) {
+            const el = container.querySelector(sel);
+            if (el) {
+              const clone = el.cloneNode(true) as HTMLElement;
+              // Remove "See more" text if it survived expansion
+              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"]').forEach(b => b.remove());
+              const content = clone.textContent?.trim() || '';
+              if (content.length > postText.length) postText = content;
             }
           }
 
-          const linkEl = Array.from(el.querySelectorAll('a')).find(a => {
-            const h = a.getAttribute('href') || '';
-            return h.includes('/posts/') || h.includes('/permalink.php') || h.includes('/reel/') || h.includes('/videos/');
-          });
-          
-          const postLink = linkEl ? linkEl.getAttribute('href') : '';
-          const imgEl = el.querySelector('img[src^="http"]');
-          const postImage = imgEl ? imgEl.getAttribute('src') : '';
-          const videoEl = el.querySelector('video');
-          const postVideo = videoEl ? (videoEl.getAttribute('src') || '') : '';
+          if (!postText || postText.length < 5 || seenTexts.has(postText)) continue;
+          seenTexts.add(postText);
 
-          if (postText || postImage || postVideo) {
-            results.push({ text: postText, url: postLink || '', image: postImage || '', video: postVideo || '', platform: 'Facebook', date: new Date().toLocaleString('ar-EG') });
-          }
+          // Find Link
+          const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"]');
+          const postUrl = link ? (link as HTMLAnchorElement).href : '';
+
+          // Find Media
+          const img = container.querySelector('img[src^="http"]:not([src*="static.xx.fbcdn.net"])');
+          const video = container.querySelector('video');
+
+          results.push({
+            text: postText,
+            url: postUrl,
+            image: img ? (img as HTMLImageElement).src : '',
+            video: video ? (video as HTMLVideoElement).src : '',
+            platform: 'Facebook',
+            date: new Date().toLocaleString('ar-EG')
+          });
         }
         return results;
       }, task.postLimit);
 
       await browser.close();
+      
       return {
         items: posts.length,
         message: `Scraped ${posts.length} posts.`,
-        data: posts.map(p => ({ ...p, id: p.url.split('/').pop() || Math.random().toString(36).substring(7), url: p.url.startsWith('http') ? p.url : `https://facebook.com${p.url}`, accountName: task.url.split('/').pop() || 'User' }))
+        data: posts.map(p => ({
+          ...p,
+          id: p.url ? p.url.split('/').filter(Boolean).pop()?.split('?')[0] : Math.random().toString(36).substring(7),
+          url: p.url || task.url,
+          accountName: task.url.split('/').filter(Boolean).pop() || 'User'
+        }))
       };
+
     } catch (error: any) {
       if (browser) await browser.close();
+      console.error("[Browser Scraper] Final Error:", error.message);
       return { items: 0, message: `Error: ${error.message}` };
     }
   }
 
   async scrapeLegacy(task: Task) {
-    // Basic fallback implementation
-    return { items: 0, message: "Legacy mode not implemented with full browser support." };
+    // Basic fallback for non-browser tasks
+    return { items: 0, message: "Legacy scraping is disabled. Please use 'browser' method for Facebook." };
   }
 }
