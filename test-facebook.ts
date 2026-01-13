@@ -15,7 +15,8 @@ async function test() {
     interval: 60,
     postLimit: 5,
     includeImages: true,
-    includeVideos: true
+    includeVideos: true,
+    scrapeMethod: "browser"
   };
 
   try {
