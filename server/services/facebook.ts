@@ -167,10 +167,12 @@ export class FacebookScraper {
                            el.getAttribute('aria-label')?.includes('Comment') ||
                            el.getAttribute('aria-label')?.includes('تعليق') ||
                            el.classList.contains('x1lliihq') ||
-                           el.querySelector('[role="complementary"]');
+                           el.querySelector('[role="complementary"]') ||
+                           el.innerText.includes('تعليق باسم') ||
+                           el.innerText.includes('التعليق باسم');
           
           // Must have a message area to be considered a main post
-          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
+          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"], .x1iorvi4, .xdj266r');
           
           // Verify it's a top-level post container (usually has aria-posinset or specific data attributes)
           const isTopLevel = el.hasAttribute('aria-posinset') || el.closest('[data-pagelet*="FeedUnit"]') || el.parentElement?.closest('[role="article"]') === null;
@@ -191,7 +193,8 @@ export class FacebookScraper {
             '.x1iorvi4',
             '.x1yzt60 .x1n2onr6',
             'div.xdj266r',
-            'div[style*="text-align"]'
+            'div[style*="text-align"]',
+            'div[dir="auto"]'
           ];
 
           let postText = '';
@@ -215,7 +218,8 @@ export class FacebookScraper {
               let content = clone.textContent?.trim() || '';
               // Additional cleanup for cases where the text might be at the end of the content but not in its own element
               textToExclude.forEach(term => {
-                const regex = new RegExp(term + '.*$', 'g');
+                // Use a more precise regex to clean up common patterns like "(اسم الحساب) تعليق باسم"
+                const regex = new RegExp(`.*${term}.*$`, 'gm');
                 content = content.replace(regex, '').trim();
               });
               if (content.length > 5) {
