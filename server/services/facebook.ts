@@ -31,48 +31,80 @@ export class FacebookScraper {
 
       // Add cookies if available
       if (fbCookies.length > 0) {
-        console.log(`[Browser Scraper] Adding ${fbCookies.length} cookies to browser context`);
+        console.log(`[Browser Scraper] Processing ${fbCookies.length} cookies...`);
         const playwrightCookies = fbCookies.flatMap(c => {
-          if (c.value.includes('\t')) { // Netscape format
-            return c.value.split('\n')
-              .map(line => line.trim())
-              .filter(line => line && !line.startsWith('#'))
-              .map(line => {
-                const parts = line.split(/\s+/);
-                if (parts.length >= 7) {
-                  return {
-                    name: parts[5].trim(),
-                    value: parts[6].trim(),
-                    domain: parts[0].trim().startsWith('.') ? parts[0].trim() : (parts[0].trim().includes('.') ? `.${parts[0].trim().replace(/^\.*/, '')}` : parts[0].trim()),
-                    path: parts[2].trim(),
-                    expires: parseInt(parts[4].trim()) || -1,
-                    httpOnly: false,
-                    secure: parts[3].trim().toUpperCase() === 'TRUE'
-                  };
-                }
-                return null;
-              }).filter(Boolean);
-          }
-          
-          // Improved raw cookie parsing
-          let name = c.name || 'session';
-          let value = c.value;
-          
-          if (!c.name && c.value.includes('=')) {
-            const firstEq = c.value.indexOf('=');
-            name = c.value.substring(0, firstEq).trim();
-            value = c.value.substring(firstEq + 1).trim();
-          }
+          try {
+            if (c.value.includes('\t')) { // Netscape format
+              return c.value.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+                .map(line => {
+                  const parts = line.split(/\s+/);
+                  if (parts.length >= 7) {
+                    let expires = parseInt(parts[4].trim());
+                    if (isNaN(expires) || expires <= 0) expires = -1;
+                    
+                    let domain = parts[0].trim();
+                    if (!domain.startsWith('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
+                      domain = '.' + domain.replace(/^\./, '');
+                    }
 
-          return [{
-            name: name,
-            value: value,
-            domain: '.facebook.com',
-            path: '/'
-          }];
-        }).filter((cookie: any) => cookie.name && cookie.value) as any[];
+                    return {
+                      name: parts[5].trim(),
+                      value: parts[6].trim(),
+                      domain: domain,
+                      path: parts[2].trim() || '/',
+                      expires: expires,
+                      httpOnly: false,
+                      secure: parts[3].trim().toUpperCase() === 'TRUE'
+                    };
+                  }
+                  return null;
+                }).filter(Boolean);
+            }
+            
+            // Raw name=value or simple value
+            let name = c.name;
+            let value = c.value;
+            
+            if (!name && value.includes('=')) {
+              const firstEq = value.indexOf('=');
+              name = value.substring(0, firstEq).trim();
+              value = value.substring(firstEq + 1).trim();
+            }
+
+            if (!name || !value) return [];
+
+            return [{
+              name: name,
+              value: value,
+              domain: '.facebook.com',
+              path: '/',
+              secure: true
+            }];
+          } catch (e) {
+            console.error(`[Browser Scraper] Error parsing cookie:`, e);
+            return [];
+          }
+        }).filter((cookie: any) => {
+          const isValid = cookie && 
+                 typeof cookie.name === 'string' && cookie.name.trim().length > 0 &&
+                 typeof cookie.value === 'string' && 
+                 typeof cookie.domain === 'string' && cookie.domain.trim().length > 0 &&
+                 !cookie.domain.startsWith('http');
+          
+          return isValid;
+        }) as any[];
         
-        await context.addCookies(playwrightCookies);
+        if (playwrightCookies.length > 0) {
+          console.log(`[Browser Scraper] Adding ${playwrightCookies.length} valid cookies to context`);
+          try {
+            await context.addCookies(playwrightCookies);
+          } catch (e: any) {
+            console.error(`[Browser Scraper] Critical error adding cookies: ${e.message}`);
+            // If adding cookies fails, we might still want to try scraping without them or let the user know
+          }
+        }
       }
 
       const page = await context.newPage();
