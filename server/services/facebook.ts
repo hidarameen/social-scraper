@@ -108,11 +108,19 @@ export class FacebookScraper {
           }
         };
 
-        await expand();
         // Single scroll to load a few more and trigger lazy expansion
-        await page.evaluate(() => window.scrollBy(0, 1200));
-        await page.waitForTimeout(1000);
-        await expand(); 
+        let currentPosts = 0;
+        let scrolls = 0;
+        while (currentPosts < (task.postLimit || 10) && scrolls < 5) {
+          await page.evaluate(() => window.scrollBy(0, 1500));
+          await page.waitForTimeout(1500);
+          await expand();
+          
+          currentPosts = await page.evaluate(() => {
+            return document.querySelectorAll('[role="article"]').length;
+          });
+          scrolls++;
+        }
       } catch (error: any) {
         console.log("[Browser Scraper] Content wait warning:", error.message);
       }
