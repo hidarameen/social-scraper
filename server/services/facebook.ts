@@ -14,7 +14,14 @@ export class FacebookScraper {
 
       browser = await chromium.launch({ 
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-gl-drawing-for-tests',
+          '--disable-dev-shm-usage',
+          '--no-zygote'
+        ],
+        executablePath: process.env.PLAYWRIGHT_CHROME_PATH || undefined
       });
       
       const context = await browser.newContext({
