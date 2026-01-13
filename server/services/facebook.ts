@@ -91,7 +91,8 @@ export class FacebookScraper implements IScraper {
         // Try multiple selectors for post content
         const postTextEl = $(el).find('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent').first();
         
-        // Remove "See more" or "عرض المزيد" buttons from the text before extraction
+        // Find the "See more" or "عرض المزيد" button before removing it to use it for expansion if possible
+        // Note: In static HTML scraping, we can't truly expand, but we can avoid partial text
         postTextEl.find('[role="button"], .see-more').remove();
         
         let postText = postTextEl.text().trim();
@@ -103,10 +104,17 @@ export class FacebookScraper implements IScraper {
           postText = genericTextEl.text().trim();
         }
 
-        const postLink = $(el).find('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/groups/"]').first().attr('href');
+        // Improved link extraction to find the REAL permalink
+        const postLinkEl = $(el).find('a').filter((_, a) => {
+          const href = $(a).attr('href') || '';
+          return (href.includes('/posts/') || href.includes('/permalink.php') || href.includes('/groups/') || href.includes('/reel/') || href.includes('/videos/')) && 
+                 !href.includes('/groups/feeds/') && !href.includes('/events/');
+        }).first();
+        
+        const postLink = postLinkEl.attr('href');
         let postId = '';
         if (postLink) {
-          const match = postLink.match(/(?:posts\/|permalink\.php\?story_fbid=)(\d+)/) || postLink.match(/\/(\d+)\/?$/);
+          const match = postLink.match(/(?:posts\/|permalink\.php\?story_fbid=|reel\/|videos\/)(\d+)/) || postLink.match(/\/(\d+)\/?$/);
           postId = match ? match[1] : postLink;
         }
 

@@ -35,10 +35,16 @@ export class TelegramService {
       if (video) {
         try {
           console.log(`Telegram Service: Processing video URL: ${video}`);
-          if (video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/')) {
+          const isFacebookVideo = video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/');
+          
+          if (isFacebookVideo) {
             console.log(`Downloading video from: ${video}`);
-            const uniqueId = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-            const tempFile = path.join("/tmp", `video_${uniqueId}.mp4`);
+            // Use a unique ID based on the video URL hash to avoid collisions and track uniquely
+            const urlHash = require('crypto').createHash('md5').update(video).digest('hex').substring(0, 8);
+            const uniqueId = `${Date.now()}_${urlHash}`;
+            const tempFile = path.join("/tmp", `fb_video_${uniqueId}.mp4`);
+            
+            console.log(`Telegram Service: Target temp file: ${tempFile}`);
             
             await youtubedl(video, {
               output: tempFile,
@@ -52,12 +58,20 @@ export class TelegramService {
             });
 
             if (fs.existsSync(tempFile)) {
-              console.log(`Telegram Service: Successfully downloaded video to ${tempFile}. Sending to Telegram...`);
-              await bot.sendVideo(chatId, tempFile, { 
-                caption: message, 
-                parse_mode: 'HTML',
-                supports_streaming: true
-              });
+              const stats = fs.statSync(tempFile);
+              console.log(`Telegram Service: Downloaded video size: ${stats.size} bytes. Path: ${tempFile}`);
+              
+              if (stats.size > 0) {
+                await bot.sendVideo(chatId, tempFile, { 
+                  caption: message, 
+                  parse_mode: 'HTML',
+                  supports_streaming: true
+                });
+                console.log(`Telegram Service: Video sent successfully.`);
+              } else {
+                throw new Error("Downloaded file is empty");
+              }
+              
               try {
                 fs.unlinkSync(tempFile);
                 console.log(`Telegram Service: Deleted temp file ${tempFile}`);
@@ -65,7 +79,7 @@ export class TelegramService {
                 console.error(`Failed to delete temp file ${tempFile}:`, delErr);
               }
             } else {
-              throw new Error("Downloaded file not found");
+              throw new Error("Downloaded file not found after yt-dlp execution");
             }
           } else {
             console.log(`Telegram Service: Sending video as direct URL: ${video}`);
