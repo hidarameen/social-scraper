@@ -106,7 +106,9 @@ export class ScraperManager {
           // Replace placeholders safely
           const safeReplace = (tmpl: string, key: string, val: any) => {
             const cleanVal = (val || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return tmpl.split(`{${key}}`).join(key === 'url' ? (val || '') : cleanVal);
+            // Use regex with global flag to ensure all occurrences are replaced exactly once per key
+            const placeholder = new RegExp(`\\{${key}\\}`, 'g');
+            return tmpl.replace(placeholder, key === 'url' ? (val || '') : cleanVal);
           };
 
           notifyMsg = safeReplace(notifyMsg, 'platform', post.platform || task.platform);
