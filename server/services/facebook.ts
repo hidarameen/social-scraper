@@ -112,22 +112,30 @@ export class FacebookScraper implements IScraper {
           return !!(src && src.startsWith('http') && !src.includes('static.xx.fbcdn.net') && (width > 100 || !width));
         }).first().attr('src');
         
-        // Try to find a video in the post
+        // Try to find a video in the post - improved selectors
         const postVideo = $(el).find('video').first().attr('src') || 
                           $(el).find('video source').first().attr('src') ||
-                          $(el).find('[data-video-url]').first().attr('data-video-url');
+                          $(el).find('[data-video-url]').first().attr('data-video-url') ||
+                          $(el).find('a[href*="/videos/"]').first().attr('href') ||
+                          $(el).find('a[href*="/watch/"]').first().attr('href');
         
         if (postText || postImage || postVideo) {
           // Clean up text: remove "See more" etc if present at the end
           postText = postText.replace(/See more$/i, '').trim();
           
           if (postText || postImage || postVideo) {
+            // If we found a video link but not a direct src, try to use it
+            let finalVideo = postVideo;
+            if (finalVideo && !finalVideo.includes('blob:') && !finalVideo.startsWith('http')) {
+              finalVideo = `https://facebook.com${finalVideo}`;
+            }
+
             posts.push({
               id: postId,
               text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
               url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url,
               image: postImage,
-              video: postVideo,
+              video: finalVideo,
               accountName: task.url.split('/').pop() || 'Facebook User',
               platform: 'Facebook',
               date: new Date().toLocaleString('ar-EG')
