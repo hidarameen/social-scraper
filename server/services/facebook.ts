@@ -10,7 +10,8 @@ export class FacebookScraper {
     
     let browser;
     try {
-      const useBrowser = task.scrapeMethod === 'browser';
+      // Force browser method for Facebook as HTML method is now heavily blocked
+      const useBrowser = true; 
       
       if (!useBrowser) {
         return this.scrapeLegacy(task);
