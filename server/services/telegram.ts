@@ -39,7 +39,7 @@ export class TelegramService {
           const isFacebookVideo = video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/');
           
           if (isFacebookVideo) {
-            console.log(`Downloading video from: ${video}`);
+            console.log(`Telegram Service: Downloading video from: ${video}`);
             // Use a unique ID based on the video URL hash to avoid collisions and track uniquely
             const urlHash = createHash('md5').update(video).digest('hex').substring(0, 8);
             const uniqueId = `${Date.now()}_${urlHash}`;
@@ -47,40 +47,45 @@ export class TelegramService {
             
             console.log(`Telegram Service: Target temp file: ${tempFile}`);
             
-            await youtubedl(video, {
-              output: tempFile,
-              noCheckCertificates: true,
-              addHeader: [
-                'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language:en-US,en;q=0.9',
-                'Sec-Fetch-Mode:navigate'
-              ]
-            });
+            try {
+              await youtubedl(video, {
+                output: tempFile,
+                noCheckCertificates: true,
+                addHeader: [
+                  'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                  'Accept-Language:en-US,en;q=0.9',
+                  'Sec-Fetch-Mode:navigate'
+                ]
+              });
 
-            if (fs.existsSync(tempFile)) {
-              const stats = fs.statSync(tempFile);
-              console.log(`Telegram Service: Downloaded video size: ${stats.size} bytes. Path: ${tempFile}`);
-              
-              if (stats.size > 0) {
-                await bot.sendVideo(chatId, tempFile, { 
-                  caption: message, 
-                  parse_mode: 'HTML',
-                  supports_streaming: true
-                });
-                console.log(`Telegram Service: Video sent successfully.`);
+              if (fs.existsSync(tempFile)) {
+                const stats = fs.statSync(tempFile);
+                console.log(`Telegram Service: Downloaded video size: ${stats.size} bytes. Path: ${tempFile}`);
+                
+                if (stats.size > 0) {
+                  await bot.sendVideo(chatId, tempFile, { 
+                    caption: message, 
+                    parse_mode: 'HTML',
+                    supports_streaming: true
+                  });
+                  console.log(`Telegram Service: Video sent successfully to ${chatId}`);
+                } else {
+                  throw new Error("Downloaded file is empty");
+                }
               } else {
-                throw new Error("Downloaded file is empty");
+                throw new Error("Downloaded file not found after yt-dlp execution");
               }
-              
-              try {
-                fs.unlinkSync(tempFile);
-                console.log(`Telegram Service: Deleted temp file ${tempFile}`);
-              } catch (delErr) {
-                console.error(`Failed to delete temp file ${tempFile}:`, delErr);
+            } finally {
+              // Always try to clean up the temp file
+              if (fs.existsSync(tempFile)) {
+                try {
+                  fs.unlinkSync(tempFile);
+                  console.log(`Telegram Service: Cleaned up temp file ${tempFile}`);
+                } catch (delErr) {
+                  console.error(`Failed to delete temp file ${tempFile}:`, delErr);
+                }
               }
-            } else {
-              throw new Error("Downloaded file not found after yt-dlp execution");
             }
           } else {
             console.log(`Telegram Service: Sending video as direct URL: ${video}`);
