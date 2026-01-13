@@ -95,18 +95,11 @@ export class ScraperManager {
           uniqueBatch.push(p);
         } else {
           duplicateInBatchCount++;
-        }
-      }
-
-      if (duplicateInBatchCount > 0) {
-        try {
           await this.storage.createLog({
             taskId: task.id,
-            status: "running",
-            message: `Filtered ${duplicateInBatchCount} duplicate posts within this batch.`,
+            status: "duplicate",
+            message: `Skipped duplicate post in batch: ${pid || 'unknown'}`,
           });
-        } catch (e) {
-          console.error("Log error:", e);
         }
       }
 
@@ -117,20 +110,18 @@ export class ScraperManager {
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
           newPosts.push(post);
-        } else {
-          alreadySentCount++;
-        }
-      }
-
-      if (alreadySentCount > 0) {
-        try {
           await this.storage.createLog({
             taskId: task.id,
-            status: "running",
-            message: `Found ${alreadySentCount} posts that were already sent previously.`,
+            status: "found",
+            message: `Found new post: ${post.normalizedId}`,
           });
-        } catch (e) {
-          console.error("Log error:", e);
+        } else {
+          alreadySentCount++;
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "skipped",
+            message: `Post already sent: ${post.normalizedId}`,
+          });
         }
       }
 
@@ -176,9 +167,20 @@ export class ScraperManager {
             // Mark as sent in DB
             await this.storage.markPostAsSent(task.id, post.normalizedId);
             
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "sent",
+              message: `Successfully sent post to Telegram: ${post.normalizedId}`,
+            });
+
             await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (sendErr: any) {
             console.error(`Failed to send post ${post.normalizedId}:`, sendErr.message);
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "error",
+              message: `Failed to send post ${post.normalizedId}: ${sendErr.message}`,
+            });
           }
         }
       }
