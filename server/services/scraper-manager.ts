@@ -76,19 +76,25 @@ export class ScraperManager {
       const result = await scraper.scrape(task);
       
       let newPosts = result.data || [];
-      if (task.lastPostId && Array.isArray(newPosts)) {
-        console.log(`Checking for new posts. Last post ID: ${task.lastPostId}`);
-        const lastIdx = newPosts.findIndex((p: any) => {
-          const pid = (p.id || '').toString().split(/[?&]/)[0];
-          const tid = (task.lastPostId || '').toString().split(/[?&]/)[0];
-          return pid === tid;
-        });
-        
-        if (lastIdx !== -1) {
-          console.log(`Found last post at index ${lastIdx}. New posts: ${lastIdx}`);
-          newPosts = newPosts.slice(0, lastIdx);
-        } else {
-          console.log(`Last post not found in current results. All ${newPosts.length} posts might be new.`);
+      if (Array.isArray(newPosts)) {
+        // First, normalize all post IDs to be used for comparison
+        newPosts = newPosts.map((p: any) => ({
+          ...p,
+          normalizedId: (p.id || '').toString().split(/[?&]/)[0]
+        }));
+
+        if (task.lastPostId) {
+          console.log(`Checking for new posts. Last post ID: ${task.lastPostId}`);
+          const normalizedLastId = (task.lastPostId || '').toString().split(/[?&]/)[0];
+          
+          const lastIdx = newPosts.findIndex((p: any) => p.normalizedId === normalizedLastId);
+          
+          if (lastIdx !== -1) {
+            console.log(`Found last post at index ${lastIdx}. New posts: ${lastIdx}`);
+            newPosts = newPosts.slice(0, lastIdx);
+          } else {
+            console.log(`Last post not found in current results. All ${newPosts.length} posts might be new.`);
+          }
         }
       }
 
@@ -101,6 +107,8 @@ export class ScraperManager {
 
       // Update last run and last post ID
       const updates: any = { lastRun: new Date() };
+      // Always update lastPostId with the newest post found in the original result (even if it's already processed)
+      // This ensures we always have the most recent ID for the next check
       if (Array.isArray(result.data) && result.data.length > 0) {
         updates.lastPostId = (result.data[0].id || '').toString().split(/[?&]/)[0];
       }
