@@ -116,8 +116,16 @@ export class FacebookScraper {
         const results: any[] = [];
         const seenTexts = new Set();
         
-        // Find article containers or text blocks
-        const containers = Array.from(document.querySelectorAll('[role="article"], div[data-testid="post_message"], div[class*="x1yztubf"]'));
+        // Find article containers or text blocks, specifically looking for top-level posts
+        const containers = Array.from(document.querySelectorAll('[role="article"]')).filter(el => {
+          // Filter out elements that are likely comments or within comment sections
+          const isComment = el.closest('[role="complementary"]') || 
+                           el.closest('[aria-label*="Comment"]') || 
+                           el.closest('[aria-label*="تعليق"]') ||
+                           el.getAttribute('aria-label')?.includes('Comment') ||
+                           el.getAttribute('aria-label')?.includes('تعليق');
+          return !isComment;
+        });
         
         for (const container of containers) {
           if (results.length >= (limit || 10)) break;
