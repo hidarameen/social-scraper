@@ -14,14 +14,12 @@ export class FacebookScraper {
   async scrape(task: Task) {
     console.log(`[Facebook Scraper] Starting: ${task.url} using ${task.scrapeMethod} method`);
     
+    if (task.scrapeMethod !== 'browser') {
+      return this.scrapeLegacy(task);
+    }
+
     let browser;
     try {
-      const useBrowser = task.scrapeMethod === 'browser';
-      
-      if (!useBrowser) {
-        return this.scrapeLegacy(task);
-      }
-
       const userCookies = await storage.getCookies(task.userId);
       const fbCookies = userCookies.filter(c => c.platform === 'facebook');
 
@@ -48,7 +46,6 @@ export class FacebookScraper {
                   const parts = line.split(/\s+/);
                   if (parts.length >= 7) {
                     let domain = parts[0].trim();
-                    // Playwright strict domain: remove leading dot for compatibility if needed
                     domain = domain.startsWith('.') ? domain : `.${domain}`;
                     
                     return {
@@ -83,14 +80,11 @@ export class FacebookScraper {
       }
 
       const page = await context.newPage();
-      // Increase timeout and use a more robust wait strategy
       await page.goto(task.url, { waitUntil: 'load', timeout: 90000 });
       
       try {
-        // Wait for article or main content with a longer timeout
         await page.waitForSelector('[role="article"]', { timeout: 45000 });
         
-        // Comprehensive "See More" expansion
         const expand = async () => {
           const seeMoreSelectors = [
             'div[role="button"]:has-text("See more")',
@@ -114,7 +108,6 @@ export class FacebookScraper {
           }
         };
 
-        // Single scroll to load a few more and trigger lazy expansion
         let currentPosts = 0;
         let scrolls = 0;
         while (currentPosts < (task.postLimit || 10) && scrolls < 5) {
@@ -124,10 +117,7 @@ export class FacebookScraper {
               status: "running",
               message: `[Scroll ${scrolls + 1}] Scrolling to find more posts... (Current: ${currentPosts}/${task.postLimit})`,
             });
-            console.log(`[Facebook Scraper] Log created for scroll ${scrolls + 1}`);
-          } catch (logErr) {
-            console.error("[Facebook Scraper] Failed to create log:", logErr);
-          }
+          } catch (logErr) {}
 
           await page.evaluate(() => window.scrollBy(0, 2500));
           await page.waitForTimeout(3000);
@@ -145,41 +135,39 @@ export class FacebookScraper {
             status: "running",
             message: `Finished scanning. Found ${currentPosts} potential post containers. Starting extraction...`,
           });
-        } catch (logErr) {
-          console.error("[Facebook Scraper] Failed to create extraction log:", logErr);
-        }
+        } catch (logErr) {}
       } catch (error: any) {
         console.log("[Browser Scraper] Content wait warning:", error.message);
       }
 
-      const posts = await page.evaluate(({ limit, task_url }) => {
-        const results: any[] = [];
-        const seenTexts = new Set();
-        
-        // Find article containers - strictly targeting posts
-        const containers = Array.from(document.querySelectorAll('[role="article"]')).filter(el => {
-          // Filter out elements that are likely comments, headers, or sidebar elements
-          const isComment = el.closest('[role="complementary"]') || 
-                           el.closest('[aria-label*="Comment"]') || 
-                           el.closest('[aria-label*="تعليق"]') ||
-                           el.getAttribute('aria-label')?.includes('Comment') ||
-                           el.getAttribute('aria-label')?.includes('تعليق') ||
-                           el.classList.contains('x1lliihq') ||
-                           el.querySelector('[role="complementary"]');
+        const extractedPosts = await page.evaluate(({ limit, task_url }) => {
+          const results: any[] = [];
+          const seenTexts = new Set();
           
-          // Must have a message area to be considered a main post
-          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
+          // Debugging within evaluate to see what's happening
+          console.log("Starting extraction in browser context...");
           
-          // Verify it's a top-level post container (usually has aria-posinset or specific data attributes)
-          const isTopLevel = el.hasAttribute('aria-posinset') || el.closest('[data-pagelet*="FeedUnit"]') || el.parentElement?.closest('[role="article"]') === null;
+          const containers = Array.from(document.querySelectorAll('[role="article"]'));
+          console.log(`Found ${containers.length} total article roles`);
 
-          return !isComment && hasMessage && isTopLevel;
-        });
-        
-        for (const container of containers) {
-          if (results.length >= (limit || 10)) break;
+          const filteredContainers = containers.filter(el => {
+            const isComment = el.closest('[role="complementary"]') || 
+                             el.closest('[aria-label*="Comment"]') || 
+                             el.closest('[aria-label*="تعليق"]') ||
+                             el.getAttribute('aria-label')?.includes('Comment') ||
+                             el.getAttribute('aria-label')?.includes('تعليق');
+            
+            // Be more lenient with message detection
+            const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], .x1iorvi4');
+            
+            return !isComment && hasMessage;
+          });
+          
+          console.log(`Filtered down to ${filteredContainers.length} valid post containers`);
 
-          // Extract text from common Facebook post structures with clear priority
+          for (const container of filteredContainers) {
+            if (results.length >= (limit || 10)) break;
+
           const textSelectors = [
             '[data-ad-comet-preview="message"]',
             '[data-ad-preview="message"]',
@@ -197,45 +185,37 @@ export class FacebookScraper {
             const el = container.querySelector(sel);
             if (el) {
               const clone = el.cloneNode(true) as HTMLElement;
-              // Remove "See more" text, buttons, and other metadata that shouldn't be in the text body
               clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"]').forEach(b => b.remove());
               const content = clone.textContent?.trim() || '';
               if (content.length > 5) {
                 postText = content;
-                break; // Found the primary text container, stop looking
+                break;
               }
             }
           }
 
-          // LOGGING STEP
-          try {
-            const shortText = postText.substring(0, 50).replace(/\n/g, ' ') + "...";
-            // postId is defined later, using a placeholder for logging
-          } catch (e) {}
-
           if (!postText || postText.length < 5 || seenTexts.has(postText)) continue;
           seenTexts.add(postText);
 
-          // Find Link
           const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"], a[href*="/story.php"]');
           let postUrl = link ? (link as HTMLAnchorElement).href : '';
           
-          // Improved ID extraction using platform-specific patterns
           let postId = '';
           if (postUrl) {
-            const urlObj = new URL(postUrl);
-            const pathParts = urlObj.pathname.split('/').filter(Boolean);
-            
-            if (postUrl.includes('/posts/')) {
-              postId = pathParts[pathParts.indexOf('posts') + 1];
-            } else if (postUrl.includes('/permalink.php')) {
-              postId = urlObj.searchParams.get('story_fbid') || urlObj.searchParams.get('id') || '';
-            } else if (postUrl.includes('/reel/') || postUrl.includes('/videos/')) {
-              postId = pathParts[pathParts.length - 1];
-            }
+            try {
+              const urlObj = new URL(postUrl);
+              const pathParts = urlObj.pathname.split('/').filter(Boolean);
+              
+              if (postUrl.includes('/posts/')) {
+                postId = pathParts[pathParts.indexOf('posts') + 1];
+              } else if (postUrl.includes('/permalink.php')) {
+                postId = urlObj.searchParams.get('story_fbid') || urlObj.searchParams.get('id') || '';
+              } else if (postUrl.includes('/reel/') || postUrl.includes('/videos/')) {
+                postId = pathParts[pathParts.length - 1];
+              }
+            } catch (e) {}
           }
 
-          // Fallback to simple hash if no unique ID found (Buffer is not available in browser context)
           if (!postId) {
             postId = postText.substring(0, 100).split('').reduce((a, b) => {
               a = ((a << 5) - a) + b.charCodeAt(0);
@@ -243,7 +223,6 @@ export class FacebookScraper {
             }, 0).toString(36);
           }
 
-          // Find Media
           const imgEl = container.querySelector('img[src^="http"]:not([src*="static.xx.fbcdn.net"])');
           const videoEl = container.querySelector('video');
           let videoUrl = videoEl ? (videoEl as HTMLVideoElement).src : '';
@@ -268,33 +247,25 @@ export class FacebookScraper {
         return results;
       }, { limit: task.postLimit, task_url: task.url });
 
-      if (!browser) throw new Error("Browser closed unexpectedly before completion");
-
-      // Deduplicate posts based on URL or ID
       const uniquePosts = [];
       const seenUrls = new Set();
-      for (const p of posts) {
+      for (const p of extractedPosts) {
         if (p.url && !seenUrls.has(p.url)) {
           seenUrls.add(p.url);
           uniquePosts.push(p);
         }
       }
 
-      // Detailed logging of found posts
-      if (posts && posts.length > 0) {
-        console.log(`[Facebook Scraper] Found ${posts.length} posts. Preparing to log each...`);
-        for (const p of posts) {
+      if (uniquePosts.length > 0) {
+        for (const p of uniquePosts) {
           try {
             const shortText = p.text.substring(0, 60).replace(/\n/g, ' ') + "...";
             await this.storage.createLog({
               taskId: task.id,
               status: "running",
-              message: `[Extraction] Extracted post text: "${shortText}" (URL: ${p.url})`,
+              message: `[Extraction] Extracted: "${shortText}" (URL: ${p.url})`,
             });
-            console.log(`[Facebook Scraper] Extraction log created for: ${p.url}`);
-          } catch (e) {
-            console.error("[Facebook Scraper] Failed to create extraction log:", e);
-          }
+          } catch (e) {}
         }
       }
 
@@ -303,13 +274,11 @@ export class FacebookScraper {
         message: `Scraped ${uniquePosts.length} posts.`,
         data: uniquePosts
       };
-
-      } finally {
-        if (browser) await browser.close().catch(() => {});
-      }
     } catch (error: any) {
       console.error("[Browser Scraper] Final Error:", error.message);
       return { items: 0, message: `Error: ${error.message}` };
+    } finally {
+      if (browser) await browser.close().catch(() => {});
     }
   }
 
