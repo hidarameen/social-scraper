@@ -21,10 +21,20 @@ export class TelegramService {
           resolve({});
           return;
         }
-        const duration = metadata.format.duration;
+        
+        // Find the video stream
         const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+        
+        // Duration can be in format.duration or stream.duration
+        let duration = metadata.format.duration;
+        if (!duration && videoStream?.duration) {
+          duration = parseFloat(videoStream.duration);
+        }
+
+        console.log(`Metadata for ${path.basename(filePath)}: duration=${duration}, size=${videoStream?.width}x${videoStream?.height}`);
+
         resolve({
-          duration: duration ? Math.floor(duration) : undefined,
+          duration: duration ? Math.round(Number(duration)) : undefined,
           width: videoStream?.width,
           height: videoStream?.height
         });
@@ -34,17 +44,35 @@ export class TelegramService {
 
   private async generateThumbnail(videoPath: string, thumbnailPath: string): Promise<boolean> {
     return new Promise((resolve) => {
+      // Create a more robust thumbnail generation
+      // We try to take a screenshot at 1 second, or 10% of duration if 1 second fails
       ffmpeg(videoPath)
         .screenshots({
-          timestamps: ['1'],
+          timestamps: [1], // Start at 1 second
           filename: path.basename(thumbnailPath),
           folder: path.dirname(thumbnailPath),
           size: '320x?'
         })
-        .on('end', () => resolve(true))
+        .on('end', () => {
+          if (fs.existsSync(thumbnailPath) && fs.statSync(thumbnailPath).size > 0) {
+            resolve(true);
+          } else {
+            console.error("Thumbnail generated but file is empty or missing");
+            resolve(false);
+          }
+        })
         .on('error', (err) => {
           console.error("Thumbnail generation error:", err);
-          resolve(false);
+          // Try a fallback: first frame
+          ffmpeg(videoPath)
+            .screenshots({
+              timestamps: [0],
+              filename: path.basename(thumbnailPath),
+              folder: path.dirname(thumbnailPath),
+              size: '320x?'
+            })
+            .on('end', () => resolve(fs.existsSync(thumbnailPath)))
+            .on('error', () => resolve(false));
         });
     });
   }
@@ -119,6 +147,9 @@ export class TelegramService {
 
                   if (hasThumb && fs.existsSync(thumbFile)) {
                     options.thumb = thumbFile;
+                  } else if (image && image.startsWith('http')) {
+                    // Fallback to original image if local thumbnail generation failed
+                    options.thumb = image;
                   }
 
                   await bot.sendVideo(chatId, tempFile, options);
