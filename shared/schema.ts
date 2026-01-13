@@ -57,7 +57,7 @@ export const proxies = pgTable("proxies", {
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
-  key: text("key").notNull().unique(), 
+  key: text("key").notNull(), 
   value: text("value").notNull(),
 });
 
