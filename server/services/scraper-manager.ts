@@ -84,20 +84,17 @@ export class ScraperManager {
         }));
 
         if (task.lastPostId) {
-          console.log(`Checking for new posts. Last post ID: ${task.lastPostId}`);
           const normalizedLastId = (task.lastPostId || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
+          console.log(`[ScraperManager] Checking for new posts. Last post ID: ${normalizedLastId}`);
           
           const lastIdx = newPosts.findIndex((p: any) => p.normalizedId === normalizedLastId);
           
           if (lastIdx !== -1) {
-            console.log(`Found last post at index ${lastIdx}. New posts before slice: ${newPosts.length}, slicing to: ${lastIdx}`);
+            console.log(`[ScraperManager] Found last post at index ${lastIdx}. New posts before slice: ${newPosts.length}`);
             newPosts = newPosts.slice(0, lastIdx);
+            console.log(`[ScraperManager] After slicing, ${newPosts.length} posts remain as new.`);
           } else {
-            console.log(`Last post ID ${normalizedLastId} not found in current results of ${newPosts.length} items.`);
-            // If the last post ID is not found, we need to be careful. 
-            // It could be that the posts are entirely new, or the lastPostId is too old.
-            // However, to prevent massive duplicates if the scraper fails to find the ID, 
-            // we should ideally have a secondary check, but for now we'll log it clearly.
+            console.log(`[ScraperManager] Last post ID ${normalizedLastId} not found in current results of ${newPosts.length} items. All items considered potentially new.`);
           }
         }
       }
@@ -106,7 +103,7 @@ export class ScraperManager {
       const uniqueNewPosts = [];
       const seenInBatch = new Set();
       for (const p of newPosts) {
-        if (!seenInBatch.has(p.normalizedId)) {
+        if (p.normalizedId && !seenInBatch.has(p.normalizedId)) {
           seenInBatch.add(p.normalizedId);
           uniqueNewPosts.push(p);
         }
@@ -122,15 +119,17 @@ export class ScraperManager {
 
       // Update last run and last post ID
       const updates: any = { lastRun: new Date() };
-      // Always update lastPostId with the newest post found in the original result (even if it's already processed)
-      // result.data[0] is the newest post from the scraper.
+      
+      // Update lastPostId ONLY if we found a NEW newest post
+      // result.data[0] is the absolute newest post from the scraper output
       if (Array.isArray(result.data) && result.data.length > 0) {
-        const newestId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
-        if (newestId) {
-          updates.lastPostId = newestId;
-          console.log(`Updating lastPostId to: ${newestId}`);
+        const newestPostId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
+        if (newestPostId && newestPostId !== task.lastPostId) {
+          updates.lastPostId = newestPostId;
+          console.log(`[ScraperManager] Updating task ${task.id} lastPostId from ${task.lastPostId} to ${newestPostId}`);
         }
       }
+      
       await this.storage.updateTask(task.id, updates);
 
       // Send to Telegram if new items found
