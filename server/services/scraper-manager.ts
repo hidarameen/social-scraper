@@ -100,11 +100,15 @@ export class ScraperManager {
       }
 
       if (duplicateInBatchCount > 0) {
-        await this.storage.createLog({
-          taskId: task.id,
-          status: "running",
-          message: `Filtered ${duplicateInBatchCount} duplicate posts within this batch.`,
-        }).catch(() => {});
+        try {
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "running",
+            message: `Filtered ${duplicateInBatchCount} duplicate posts within this batch.`,
+          });
+        } catch (e) {
+          console.error("Log error:", e);
+        }
       }
 
       // Filter against database (sent_posts)
@@ -120,11 +124,15 @@ export class ScraperManager {
       }
 
       if (alreadySentCount > 0) {
-        await this.storage.createLog({
-          taskId: task.id,
-          status: "running",
-          message: `Found ${alreadySentCount} posts that were already sent previously.`,
-        }).catch(() => {});
+        try {
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "running",
+            message: `Found ${alreadySentCount} posts that were already sent previously.`,
+          });
+        } catch (e) {
+          console.error("Log error:", e);
+        }
       }
 
       await this.storage.createLog({

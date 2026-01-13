@@ -118,14 +118,19 @@ export class FacebookScraper {
         let currentPosts = 0;
         let scrolls = 0;
         while (currentPosts < (task.postLimit || 10) && scrolls < 5) {
-          await this.storage.createLog({
-            taskId: task.id,
-            status: "running",
-            message: `[Scroll ${scrolls + 1}] Scrolling to find more posts... (Current: ${currentPosts}/${task.postLimit})`,
-          }).catch(() => {});
+          try {
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "running",
+              message: `[Scroll ${scrolls + 1}] Scrolling to find more posts... (Current: ${currentPosts}/${task.postLimit})`,
+            });
+            console.log(`[Facebook Scraper] Log created for scroll ${scrolls + 1}`);
+          } catch (logErr) {
+            console.error("[Facebook Scraper] Failed to create log:", logErr);
+          }
 
           await page.evaluate(() => window.scrollBy(0, 1500));
-          await page.waitForTimeout(1500);
+          await page.waitForTimeout(2000);
           await expand();
           
           currentPosts = await page.evaluate(() => {
@@ -134,11 +139,15 @@ export class FacebookScraper {
           scrolls++;
         }
         
-        await this.storage.createLog({
-          taskId: task.id,
-          status: "running",
-          message: `Finished scanning. Found ${currentPosts} potential post containers. Starting extraction...`,
-        }).catch(() => {});
+        try {
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "running",
+            message: `Finished scanning. Found ${currentPosts} potential post containers. Starting extraction...`,
+          });
+        } catch (logErr) {
+          console.error("[Facebook Scraper] Failed to create extraction log:", logErr);
+        }
       } catch (error: any) {
         console.log("[Browser Scraper] Content wait warning:", error.message);
       }
