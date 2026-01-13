@@ -90,15 +90,28 @@ export class ScraperManager {
           const lastIdx = newPosts.findIndex((p: any) => p.normalizedId === normalizedLastId);
           
           if (lastIdx !== -1) {
-            console.log(`Found last post at index ${lastIdx}. New posts: ${lastIdx}`);
+            console.log(`Found last post at index ${lastIdx}. New posts before slice: ${newPosts.length}, slicing to: ${lastIdx}`);
             newPosts = newPosts.slice(0, lastIdx);
           } else {
-            // Check if any post is older than lastPostId by assuming chronological order (if we had timestamps)
-            // Since we don't have reliable timestamps, we'll just keep the original logic but ensure the ID update is robust
-            console.log(`Last post not found in current results. All ${newPosts.length} posts might be new or lastPostId is too old.`);
+            console.log(`Last post ID ${normalizedLastId} not found in current results of ${newPosts.length} items.`);
+            // If the last post ID is not found, we need to be careful. 
+            // It could be that the posts are entirely new, or the lastPostId is too old.
+            // However, to prevent massive duplicates if the scraper fails to find the ID, 
+            // we should ideally have a secondary check, but for now we'll log it clearly.
           }
         }
       }
+
+      // Final duplication check within the newPosts themselves
+      const uniqueNewPosts = [];
+      const seenInBatch = new Set();
+      for (const p of newPosts) {
+        if (!seenInBatch.has(p.normalizedId)) {
+          seenInBatch.add(p.normalizedId);
+          uniqueNewPosts.push(p);
+        }
+      }
+      newPosts = uniqueNewPosts;
 
       await this.storage.createLog({
         taskId: task.id,
@@ -110,9 +123,13 @@ export class ScraperManager {
       // Update last run and last post ID
       const updates: any = { lastRun: new Date() };
       // Always update lastPostId with the newest post found in the original result (even if it's already processed)
-      // This ensures we always have the most recent ID for the next check
+      // result.data[0] is the newest post from the scraper.
       if (Array.isArray(result.data) && result.data.length > 0) {
-        updates.lastPostId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
+        const newestId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
+        if (newestId) {
+          updates.lastPostId = newestId;
+          console.log(`Updating lastPostId to: ${newestId}`);
+        }
       }
       await this.storage.updateTask(task.id, updates);
 
