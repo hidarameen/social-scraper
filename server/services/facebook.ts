@@ -17,11 +17,11 @@ export class FacebookScraper {
         args: [
           '--no-sandbox', 
           '--disable-setuid-sandbox',
-          '--disable-gl-drawing-for-tests',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
           '--disable-dev-shm-usage',
           '--no-zygote'
-        ],
-        executablePath: process.env.PLAYWRIGHT_CHROME_PATH || undefined
+        ]
       });
       
       const context = await browser.newContext({
@@ -43,7 +43,7 @@ export class FacebookScraper {
                   return {
                     name: parts[5].trim(),
                     value: parts[6].trim(),
-                    domain: parts[0].trim().startsWith('.') ? parts[0].trim() : `.${parts[0].trim()}`,
+                    domain: parts[0].trim().startsWith('.') ? parts[0].trim() : (parts[0].trim().includes('.') ? `.${parts[0].trim().replace(/^\.*/, '')}` : parts[0].trim()),
                     path: parts[2].trim(),
                     expires: parseInt(parts[4].trim()) || -1,
                     httpOnly: false,
@@ -53,13 +53,24 @@ export class FacebookScraper {
                 return null;
               }).filter(Boolean);
           }
+          
+          // Improved raw cookie parsing
+          let name = c.name || 'session';
+          let value = c.value;
+          
+          if (!c.name && c.value.includes('=')) {
+            const firstEq = c.value.indexOf('=');
+            name = c.value.substring(0, firstEq).trim();
+            value = c.value.substring(firstEq + 1).trim();
+          }
+
           return [{
-            name: c.name || 'session',
-            value: c.value,
+            name: name,
+            value: value,
             domain: '.facebook.com',
             path: '/'
           }];
-        }) as any[];
+        }).filter((cookie: any) => cookie.name && cookie.value) as any[];
         
         await context.addCookies(playwrightCookies);
       }
