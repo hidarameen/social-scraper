@@ -34,6 +34,7 @@ export class TelegramService {
       
       if (video) {
         try {
+          console.log(`Telegram Service: Processing video URL: ${video}`);
           if (video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/')) {
             console.log(`Downloading video from: ${video}`);
             const tempFile = path.join("/tmp", `video_${Date.now()}.mp4`);
@@ -50,12 +51,14 @@ export class TelegramService {
             });
 
             if (fs.existsSync(tempFile)) {
+              console.log(`Telegram Service: Successfully downloaded video to ${tempFile}. Sending to Telegram...`);
               await bot.sendVideo(chatId, tempFile, { caption: message, parse_mode: 'HTML' });
               fs.unlinkSync(tempFile);
             } else {
               throw new Error("Downloaded file not found");
             }
           } else {
+            console.log(`Telegram Service: Sending video as direct URL: ${video}`);
             await bot.sendVideo(chatId, video, { caption: message, parse_mode: 'HTML' });
           }
         } catch (vErr: any) {

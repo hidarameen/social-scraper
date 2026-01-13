@@ -113,37 +113,31 @@ export class FacebookScraper implements IScraper {
         }).first().attr('src');
         
         // Try to find a video in the post - improved selectors including Reels
-        const postVideo = $(el).find('video').first().attr('src') || 
+        let postVideo = $(el).find('video').first().attr('src') || 
                           $(el).find('video source').first().attr('src') ||
-                          $(el).find('[data-video-url]').first().attr('data-video-url') ||
-                          $(el).find('a[href*="/videos/"]').first().attr('href') ||
-                          $(el).find('a[href*="/watch/"]').first().attr('href') ||
-                          $(el).find('a[href*="/reel/"]').first().attr('href');
+                          $(el).find('[data-video-url]').first().attr('data-video-url');
+
+        // Fallback to link-based video discovery if direct src is not found or is a blob
+        if (!postVideo || postVideo.startsWith('blob:')) {
+          const videoLink = $(el).find('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]').first().attr('href');
+          if (videoLink) {
+            postVideo = videoLink.startsWith('http') ? videoLink : `https://www.facebook.com${videoLink.startsWith('/') ? '' : '/'}${videoLink}`;
+          }
+        }
         
         if (postText || postImage || postVideo) {
           // Clean up text: remove "See more" etc if present at the end
           postText = postText.replace(/See more$/i, '').trim();
           
           if (postText || postImage || postVideo) {
-            // If we found a video link but not a direct src, try to use it
-            let finalVideo = postVideo;
-            if (finalVideo && !finalVideo.includes('blob:') && !finalVideo.startsWith('http')) {
-              finalVideo = `https://facebook.com${finalVideo}`;
-            }
-
-            // If it's a Reel, ensure we have the full URL
-            if (finalVideo && finalVideo.includes('/reel/')) {
-               if (!finalVideo.startsWith('http')) {
-                 finalVideo = `https://www.facebook.com${finalVideo.startsWith('/') ? '' : '/'}${finalVideo}`;
-               }
-            }
-
+            console.log(`Facebook Scraper: Found content. Text: ${!!postText}, Image: ${!!postImage}, Video URL: ${postVideo}`);
+            
             posts.push({
-              id: postId || (finalVideo ? finalVideo.split('/').pop() : ''),
+              id: postId || (postVideo ? postVideo.split('/').pop() : ''),
               text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
-              url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : (finalVideo || task.url),
+              url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : (postVideo || task.url),
               image: postImage,
-              video: finalVideo,
+              video: postVideo,
               accountName: task.url.split('/').pop() || 'Facebook User',
               platform: 'Facebook',
               date: new Date().toLocaleString('ar-EG')
