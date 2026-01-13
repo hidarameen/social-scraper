@@ -152,7 +152,7 @@ export class FacebookScraper {
         console.log("[Browser Scraper] Content wait warning:", error.message);
       }
 
-      const posts = await page.evaluate((limit, task_url) => {
+      const posts = await page.evaluate(({ limit, task_url }) => {
         const results: any[] = [];
         const seenTexts = new Set();
         
@@ -258,7 +258,7 @@ export class FacebookScraper {
           });
         }
         return results;
-      }, task.postLimit, task.url);
+      }, { limit: task.postLimit, task_url: task.url });
 
       if (!browser) throw new Error("Browser closed unexpectedly before completion");
 
