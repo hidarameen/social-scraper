@@ -290,7 +290,8 @@ export class FacebookScraper {
         items: posts.length,
         message: `Scraped ${posts.length} posts.`,
         data: posts.map(p => {
-          const id = p.url ? p.url.split('/').filter(Boolean).pop()?.split('?')[0] : Math.random().toString(36).substring(7);
+          // Keep the original platform-extracted ID if available, otherwise fallback
+          const id = p.id || (p.url ? p.url.split('/').filter(Boolean).pop()?.split('?')[0] : Math.random().toString(36).substring(7));
           return {
             ...p,
             id: id,
