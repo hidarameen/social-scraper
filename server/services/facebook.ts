@@ -15,12 +15,15 @@ export class FacebookScraper implements IScraper {
         .filter(c => c.platform === 'facebook')
         .map(c => {
           // If it's a Netscape cookie file format, parse it
-          if (c.value.includes('\t') || (c.value.includes('TRUE') && c.value.includes('FALSE'))) {
+          // Standard Netscape starts with # Netscape, but some exporters add prefixes
+          if (c.value.includes('\t') || c.value.toLowerCase().includes('netscape')) {
             return c.value
               .split('\n')
-              .filter(line => line.trim() && !line.startsWith('#'))
+              .map(line => line.trim())
+              .filter(line => line && !line.startsWith('#'))
               .map(line => {
                 const parts = line.split(/\s+/);
+                // Netscape format: domain, flag, path, secure, expiration, name, value
                 if (parts.length >= 7) {
                   const name = parts[5].trim();
                   const value = parts[6].trim();
@@ -32,8 +35,11 @@ export class FacebookScraper implements IScraper {
               .join('; ');
           }
           // Handle name=value or JSON/raw string
-          return c.value.includes('=') ? c.value : `${c.name}=${c.value}`;
+          // Remove any non-ASCII or control characters that might break headers
+          const cleanValue = c.value.replace(/[\r\n\t]/g, ' ').replace(/[^\x20-\x7E]/g, '').trim();
+          return cleanValue.includes('=') ? cleanValue : `${c.name}=${cleanValue}`;
         })
+        .filter(Boolean)
         .join('; ');
 
       // 2. Fetch available proxies
