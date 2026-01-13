@@ -1,16 +1,20 @@
 import { chromium } from 'playwright';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 import { Task } from "@shared/schema";
 import { storage } from "../storage";
 
 export class FacebookScraper {
   async scrape(task: Task) {
-    console.log(`[Browser Scraper] Starting: ${task.url}`);
+    console.log(`[Facebook Scraper] Starting: ${task.url} using ${task.scrapeMethod} method`);
     
     let browser;
     try {
-      // Facebook requires browser method due to complex JS rendering and bot protection
-      // Even if 'html' is selected, we use browser to ensure it works.
-      const useBrowser = true; 
+      const useBrowser = task.scrapeMethod === 'browser';
+      
+      if (!useBrowser) {
+        return this.scrapeLegacy(task);
+      }
 
       const userCookies = await storage.getCookies(task.userId);
       const fbCookies = userCookies.filter(c => c.platform === 'facebook');
@@ -196,7 +200,55 @@ export class FacebookScraper {
   }
 
   async scrapeLegacy(task: Task) {
-    // Basic fallback for non-browser tasks
-    return { items: 0, message: "Legacy scraping is disabled. Please use 'browser' method for Facebook." };
+    console.log(`[Facebook Scraper] Attempting legacy HTML scrape for: ${task.url}`);
+    try {
+      const response = await axios.get(task.url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7'
+        },
+        timeout: 10000
+      });
+
+      const $ = cheerio.load(response.data);
+      const posts: any[] = [];
+      const seenTexts = new Set();
+
+      // Legacy Facebook selectors (very unreliable now, but fulfilling the 'html' request)
+      $('div[role="article"], .userContentWrapper, ._5pcr').each((_, el) => {
+        if (posts.length >= (task.postLimit || 10)) return;
+
+        const container = $(el);
+        const postText = container.find('[data-ad-comet-preview="message"], .userContent, [data-testid="post_message"]').text().trim();
+        
+        if (postText && postText.length > 5 && !seenTexts.has(postText)) {
+          seenTexts.add(postText);
+          const link = container.find('a[href*="/posts/"], a[href*="/permalink.php"]').attr('href');
+          
+          posts.push({
+            text: postText,
+            url: link ? (link.startsWith('http') ? link : `https://facebook.com${link}`) : task.url,
+            platform: 'Facebook',
+            date: new Date().toLocaleString('ar-EG')
+          });
+        }
+      });
+
+      return {
+        items: posts.length,
+        message: `Scraped ${posts.length} posts using HTML method. Note: This method is less reliable for Facebook.`,
+        data: posts.map(p => ({
+          ...p,
+          id: Math.random().toString(36).substring(7),
+          accountName: task.url.split('/').filter(Boolean).pop() || 'User'
+        }))
+      };
+    } catch (error: any) {
+      console.error("[Facebook Scraper] Legacy Error:", error.message);
+      return { 
+        items: 0, 
+        message: `HTML Scraping failed: ${error.message}. Facebook often blocks non-browser requests. Please use 'browser' method.` 
+      };
+    }
   }
 }
