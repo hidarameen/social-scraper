@@ -14,6 +14,7 @@ export const scrapeMethods = ["api", "html", "browser"] as const;
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id), 
+  name: text("name"),
   platform: text("platform", { enum: platforms }).notNull(),
   url: text("url").notNull(),
   target: text("target"), 

@@ -101,8 +101,15 @@ export default function Dashboard() {
                   log.status === 'success' ? 'bg-green-500' : 
                   log.status === 'error' ? 'bg-red-500' : 'bg-blue-500'
                 }`} />
-                <div>
-                  <p className="text-sm font-medium">{log.message}</p>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">
+                    {log.message}
+                    {tasks?.find(t => t.id === log.taskId)?.name && (
+                      <span className="text-muted-foreground ml-1">
+                        ({tasks.find(t => t.id === log.taskId)?.name})
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '-'}
                   </p>

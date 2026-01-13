@@ -87,6 +87,7 @@ export default function Tasks() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Task Name</TableHead>
               <TableHead>Platform</TableHead>
               <TableHead>Target</TableHead>
               <TableHead>Interval</TableHead>
@@ -98,7 +99,10 @@ export default function Tasks() {
           <TableBody>
             {tasks?.map((task) => (
               <TableRow key={task.id}>
-                <TableCell className="font-medium capitalize">
+                <TableCell className="font-medium">
+                  {task.name || "Untitled Task"}
+                </TableCell>
+                <TableCell className="capitalize">
                   {task.platform}
                 </TableCell>
                 <TableCell>

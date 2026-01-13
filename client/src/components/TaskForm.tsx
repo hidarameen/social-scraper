@@ -41,6 +41,7 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
     resolver: zodResolver(insertTaskSchema),
     defaultValues: {
       userId: user?.id,
+      name: task?.name || "",
       platform: task?.platform || "twitter",
       url: task?.url || "",
       target: task?.target || "",
@@ -81,6 +82,19 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>اسم المهمة</FormLabel>
+              <FormControl>
+                <Input placeholder="أدخل اسماً للمهمة (اختياري)" {...field} value={field.value || ""} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="platform"
