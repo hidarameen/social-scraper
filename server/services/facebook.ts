@@ -129,8 +129,8 @@ export class FacebookScraper {
             console.error("[Facebook Scraper] Failed to create log:", logErr);
           }
 
-          await page.evaluate(() => window.scrollBy(0, 1500));
-          await page.waitForTimeout(2000);
+          await page.evaluate(() => window.scrollBy(0, 2500));
+          await page.waitForTimeout(3000);
           await expand();
           
           currentPosts = await page.evaluate(() => {
@@ -158,14 +158,15 @@ export class FacebookScraper {
         
         // Find article containers or text blocks, specifically looking for top-level posts
         // Expanded selector to catch more variations of Facebook post containers
-        const containers = Array.from(document.querySelectorAll('[role="article"], .x1yzt60, .x1n2onr6, .x1ja2u2z')).filter(el => {
+        const containers = Array.from(document.querySelectorAll('[role="article"], .x1yzt60, .x1n2onr6, .x1ja2u2z, div[data-testid="fbfeed_story"], .x9f619.x1n2onr6.x1ja2u2z')).filter(el => {
           // Filter out elements that are likely comments or within comment sections
           const isComment = el.closest('[role="complementary"]') || 
                            el.closest('[aria-label*="Comment"]') || 
                            el.closest('[aria-label*="تعليق"]') ||
                            el.getAttribute('aria-label')?.includes('Comment') ||
                            el.getAttribute('aria-label')?.includes('تعليق') ||
-                           el.classList.contains('x1lliihq'); // Common class for comments
+                           el.classList.contains('x1lliihq') ||
+                           el.querySelector('[role="complementary"]'); 
           return !isComment;
         });
         
@@ -179,7 +180,9 @@ export class FacebookScraper {
             '.userContent',
             'div[dir="auto"]',
             '[data-testid="post_message"]',
-            '.x1iorvi4' // New common class for post text
+            '.x1iorvi4',
+            '.x1yzt60 .x1n2onr6',
+            'div.xdj266r' // Added another potential text selector
           ];
 
           let postText = '';
