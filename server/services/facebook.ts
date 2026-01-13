@@ -113,8 +113,8 @@ export class FacebookScraper {
         await page.evaluate(() => window.scrollBy(0, 1200));
         await page.waitForTimeout(1000);
         await expand(); 
-      } catch (e) {
-        console.log("[Browser Scraper] Content wait warning:", e.message);
+      } catch (error: any) {
+        console.log("[Browser Scraper] Content wait warning:", error.message);
       }
 
       const posts = await page.evaluate((limit) => {
@@ -202,13 +202,22 @@ export class FacebookScraper {
   async scrapeLegacy(task: Task) {
     console.log(`[Facebook Scraper] Attempting legacy HTML scrape for: ${task.url}`);
     try {
+      // Use a mobile user agent as it sometimes bypasses some desktop-only protections
       const response = await axios.get(task.url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7'
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Upgrade-Insecure-Requests': '1',
+          'Cache-Control': 'max-age=0'
         },
-        timeout: 10000
+        timeout: 15000,
+        validateStatus: (status) => status < 500 // Accept 4xx errors to log them better
       });
+
+      if (response.status === 400 || response.status === 403 || response.status === 404) {
+        throw new Error(`Facebook blocked the request (Status ${response.status}). Non-browser scraping is highly restricted.`);
+      }
 
       const $ = cheerio.load(response.data);
       const posts: any[] = [];
