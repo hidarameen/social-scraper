@@ -77,9 +77,18 @@ export class ScraperManager {
       
       let newPosts = result.data || [];
       if (task.lastPostId && Array.isArray(newPosts)) {
-        const lastIdx = newPosts.findIndex((p: any) => p.id === task.lastPostId);
+        console.log(`Checking for new posts. Last post ID: ${task.lastPostId}`);
+        const lastIdx = newPosts.findIndex((p: any) => {
+          const pid = (p.id || '').toString().split(/[?&]/)[0];
+          const tid = (task.lastPostId || '').toString().split(/[?&]/)[0];
+          return pid === tid;
+        });
+        
         if (lastIdx !== -1) {
+          console.log(`Found last post at index ${lastIdx}. New posts: ${lastIdx}`);
           newPosts = newPosts.slice(0, lastIdx);
+        } else {
+          console.log(`Last post not found in current results. All ${newPosts.length} posts might be new.`);
         }
       }
 
@@ -93,7 +102,7 @@ export class ScraperManager {
       // Update last run and last post ID
       const updates: any = { lastRun: new Date() };
       if (Array.isArray(result.data) && result.data.length > 0) {
-        updates.lastPostId = result.data[0].id;
+        updates.lastPostId = (result.data[0].id || '').toString().split(/[?&]/)[0];
       }
       await this.storage.updateTask(task.id, updates);
 

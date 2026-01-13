@@ -108,7 +108,7 @@ export class FacebookScraper implements IScraper {
         const postLinkEl = $(el).find('a').filter((_, a) => {
           const href = $(a).attr('href') || '';
           return (href.includes('/posts/') || href.includes('/permalink.php') || href.includes('/groups/') || href.includes('/reel/') || href.includes('/videos/')) && 
-                 !href.includes('/groups/feeds/') && !href.includes('/events/');
+                 !href.includes('/groups/feeds/') && !href.includes('/events/') && !href.includes('/photos/') && !href.includes('/about/');
         }).first();
         
         const postLink = postLinkEl.attr('href');
@@ -116,6 +116,11 @@ export class FacebookScraper implements IScraper {
         if (postLink) {
           const match = postLink.match(/(?:posts\/|permalink\.php\?story_fbid=|reel\/|videos\/)(\d+)/) || postLink.match(/\/(\d+)\/?$/);
           postId = match ? match[1] : postLink;
+        }
+
+        // Clean postId to remove tracking parameters
+        if (postId) {
+          postId = postId.split(/[?&]/)[0];
         }
 
         // Try to find a high-quality image in the post
