@@ -165,7 +165,10 @@ export class FacebookScraper {
                            el.getAttribute('aria-label')?.includes('Comment') ||
                            el.getAttribute('aria-label')?.includes('تعليق') ||
                            el.classList.contains('x1lliihq') ||
-                           el.querySelector('[role="complementary"]');
+                           el.querySelector('[role="complementary"]') ||
+                           el.innerText.includes('تم التعليق بواسطة') ||
+                           el.innerText.includes('Commented on by') ||
+                           el.innerText.includes('التعليق باسم');
           
           // Must have a message area to be considered a main post
           const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
@@ -198,7 +201,18 @@ export class FacebookScraper {
             if (el) {
               const clone = el.cloneNode(true) as HTMLElement;
               // Remove "See more" text, buttons, and other metadata that shouldn't be in the text body
-              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"]').forEach(b => b.remove());
+              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"], [aria-label*="تعليق"]').forEach(b => b.remove());
+              
+              // Remove "Commented on by" or similar notification text if it's inside the message area
+              const textToExclude = ['تم التعليق بواسطة', 'Commented on by', 'قام بالتعليق', 'التعليق باسم'];
+              textToExclude.forEach(term => {
+                clone.querySelectorAll('*').forEach(child => {
+                  if (child.textContent?.includes(term)) {
+                    child.remove();
+                  }
+                });
+              });
+
               const content = clone.textContent?.trim() || '';
               if (content.length > 5) {
                 postText = content;
