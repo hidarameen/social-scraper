@@ -3,6 +3,7 @@ import { IStorage } from "../storage";
 import path from "path";
 import fs from "fs";
 import youtubedl from "youtube-dl-exec";
+import { createHash } from "crypto";
 
 export class TelegramService {
   private storage: IStorage;
@@ -40,7 +41,7 @@ export class TelegramService {
           if (isFacebookVideo) {
             console.log(`Downloading video from: ${video}`);
             // Use a unique ID based on the video URL hash to avoid collisions and track uniquely
-            const urlHash = require('crypto').createHash('md5').update(video).digest('hex').substring(0, 8);
+            const urlHash = createHash('md5').update(video).digest('hex').substring(0, 8);
             const uniqueId = `${Date.now()}_${urlHash}`;
             const tempFile = path.join("/tmp", `fb_video_${uniqueId}.mp4`);
             
