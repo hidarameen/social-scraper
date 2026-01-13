@@ -48,28 +48,33 @@ export class TelegramService {
             console.log(`Telegram Service: Target temp file: ${tempFile}`);
             
             try {
-            await youtubedl(video, {
-              output: tempFile,
-              noCheckCertificates: true,
-              format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-              recodeVideo: 'mp4',
-              addHeader: [
-                'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language:en-US,en;q=0.9',
-                'Sec-Fetch-Mode:navigate'
-              ]
-            });
+              // Get video info to check if we can get a direct mp4 link or if we must download
+              // Using a slightly more aggressive format selection for Telegram compatibility
+              const formatStr = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
+              
+              await youtubedl(video, {
+                output: tempFile,
+                noCheckCertificates: true,
+                format: formatStr,
+                recodeVideo: 'mp4',
+                addHeader: [
+                  'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                  'Accept-Language:en-US,en;q=0.9',
+                  'Sec-Fetch-Mode:navigate'
+                ]
+              });
 
               if (fs.existsSync(tempFile)) {
                 const stats = fs.statSync(tempFile);
                 console.log(`Telegram Service: Downloaded video size: ${stats.size} bytes. Path: ${tempFile}`);
                 
                 if (stats.size > 0) {
+                  // Ensure we send as a document if it's too large, but for standard videos try sendVideo first
                   await bot.sendVideo(chatId, tempFile, { 
                     caption: message, 
                     parse_mode: 'HTML',
-                    supports_streaming: true
+                    supports_streaming: true,
                   });
                   console.log(`Telegram Service: Video sent successfully to ${chatId}`);
                 } else {

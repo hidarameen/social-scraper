@@ -152,9 +152,13 @@ export class FacebookScraper implements IScraper {
         }
 
         // Final verification: ensure we didn't just grab a profile link or something generic
-        if (postVideo && (postVideo.includes('/permalink.php') || postVideo.includes('/posts/')) && !postVideo.includes('video')) {
+        if (postVideo && (postVideo.includes('/permalink.php') || postVideo.includes('/posts/')) && !postVideo.includes('video') && !postVideo.includes('reel')) {
            // If we got a post link instead of a video link, check if there's a more specific one
-           const betterLink = $(el).find('a[href*="/reel/"], a[href*="/videos/"]').first().attr('href');
+           const betterLink = $(el).find('a').filter((_, a) => {
+             const href = $(a).attr('href') || '';
+             return href.includes('/reel/') || href.includes('/videos/') || href.includes('/watch/');
+           }).first().attr('href');
+           
            if (betterLink) {
              postVideo = betterLink.startsWith('http') ? betterLink : `https://www.facebook.com${betterLink.startsWith('/') ? '' : '/'}${betterLink}`;
            }
