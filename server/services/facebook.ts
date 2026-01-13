@@ -10,8 +10,7 @@ export class FacebookScraper {
     
     let browser;
     try {
-      // Force browser method for Facebook as HTML method is now heavily blocked
-      const useBrowser = true; 
+      const useBrowser = task.scrapeMethod === 'browser';
       
       if (!useBrowser) {
         return this.scrapeLegacy(task);
@@ -22,7 +21,7 @@ export class FacebookScraper {
 
       browser = await chromium.launch({ 
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-extensions']
       });
       
       const context = await browser.newContext({
@@ -78,12 +77,12 @@ export class FacebookScraper {
       }
 
       const page = await context.newPage();
-      // Use domcontentloaded for faster start, then wait for specific elements
-      await page.goto(task.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      // Increase timeout and use a more robust wait strategy
+      await page.goto(task.url, { waitUntil: 'load', timeout: 90000 });
       
       try {
-        // Wait for any article or feed content
-        await page.waitForSelector('[role="article"], div[data-testid="post_message"], div[class*="x1yztubf"]', { timeout: 15000 });
+        // Wait for article or main content with a longer timeout
+        await page.waitForSelector('[role="article"]', { timeout: 45000 });
         
         // Comprehensive "See More" expansion
         const expand = async () => {
@@ -179,6 +178,8 @@ export class FacebookScraper {
         }
         return results;
       }, task.postLimit);
+
+      if (!browser) throw new Error("Browser closed unexpectedly before completion");
 
       await browser.close();
       
