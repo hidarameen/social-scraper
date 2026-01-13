@@ -77,8 +77,17 @@ export class ScraperManager {
 
       const result = await scraper.scrape(task);
       
-      console.log(`[ScraperManager] Result data:`, JSON.stringify(result.data, null, 2));
-      let allPosts = result.data || [];
+      console.log(`--------------------------------------------------`);
+      console.log(`[TASK EXECUTION] ID: ${task.id} | Platform: ${task.platform.toUpperCase()}`);
+      console.log(`[STATUS] ${result.message}`);
+      
+      const allPosts = Array.isArray(result.data) ? result.data : [];
+      console.log(`[FOUND] Total posts extracted: ${allPosts.length}`);
+      
+      if (allPosts.length > 0) {
+        console.log(`[PROCESSING] Starting status verification for each post...`);
+      }
+      console.log(`--------------------------------------------------`);
 
       // Deduplicate within the current batch first
       const uniqueBatch = [];
