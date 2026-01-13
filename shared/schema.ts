@@ -24,6 +24,8 @@ export const tasks = pgTable("tasks", {
   scrapeMethod: text("scrape_method", { enum: scrapeMethods }).default("html"),
   lastPostId: text("last_post_id"),
   messageTemplate: text("message_template"),
+  includeImages: boolean("include_images").default(true),
+  includeVideos: boolean("include_videos").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

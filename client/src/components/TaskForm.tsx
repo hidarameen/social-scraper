@@ -4,6 +4,7 @@ import { insertTaskSchema, type InsertTask, platforms, scrapeMethods } from "@sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -23,9 +24,11 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { useCreateTask, useUpdateTask } from "@/hooks/use-tasks";
 import { useAuth } from "@/hooks/use-auth";
+import { Image, Video, Tag } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface TaskFormProps {
-  task?: InsertTask & { id?: number, messageTemplate?: string | null };
+  task?: InsertTask & { id?: number, messageTemplate?: string | null, includeImages?: boolean, includeVideos?: boolean };
   onSuccess?: () => void;
 }
 
@@ -46,6 +49,8 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
       scrapeMethod: task?.scrapeMethod || "html",
       status: task?.status || "active",
       messageTemplate: (task as any)?.messageTemplate || "<b>[ScrapeMaster]</b>\nAccount: {account}\nPlatform: {platform}\nDate: {date}\n\n{text}\n\n<a href=\"{url}\">View Post</a>",
+      includeImages: task?.includeImages ?? true,
+      includeVideos: task?.includeVideos ?? true,
     },
   });
 
@@ -61,6 +66,13 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
       console.error(error);
     }
   };
+
+  const addTag = (tag: string) => {
+    const current = form.getValues("messageTemplate") || "";
+    form.setValue("messageTemplate", current + `{${tag}}`);
+  };
+
+  const tags = ["platform", "url", "text", "account", "date"];
 
   return (
     <Form {...form}>
@@ -146,6 +158,49 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
           />
         </div>
 
+        <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-accent/50 border border-border">
+          <FormField
+            control={form.control}
+            name="includeImages"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="flex items-center gap-2 cursor-pointer">
+                    <Image size={14} className="text-muted-foreground" />
+                    Include Images
+                  </FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="includeVideos"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="flex items-center gap-2 cursor-pointer">
+                    <Video size={14} className="text-muted-foreground" />
+                    Include Videos
+                  </FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
+        </div>
+
         <FormField
           control={form.control}
           name="interval"
@@ -190,8 +245,23 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
           control={form.control}
           name="messageTemplate"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Telegram Message Template</FormLabel>
+            <FormItem className="space-y-3">
+              <div className="flex items-center justify-between">
+                <FormLabel>Telegram Message Template</FormLabel>
+                <div className="flex gap-1">
+                  {tags.map(t => (
+                    <Badge 
+                      key={t} 
+                      variant="secondary" 
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors py-0.5 text-[10px]"
+                      onClick={() => addTag(t)}
+                    >
+                      <Tag size={10} className="mr-1" />
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
               <FormControl>
                 <Textarea 
                   placeholder="Enter template..." 
@@ -201,7 +271,7 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
                 />
               </FormControl>
               <FormDescription>
-                Placeholders: &#123;text&#125;, &#123;url&#125;, &#123;platform&#125;, &#123;account&#125;, &#123;date&#125;. Supports HTML.
+                Click tags above to insert. Supports HTML (b, i, a).
               </FormDescription>
               <FormMessage />
             </FormItem>
