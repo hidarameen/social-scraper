@@ -52,7 +52,11 @@ export class TelegramService {
 
             if (fs.existsSync(tempFile)) {
               console.log(`Telegram Service: Successfully downloaded video to ${tempFile}. Sending to Telegram...`);
-              await bot.sendVideo(chatId, tempFile, { caption: message, parse_mode: 'HTML' });
+              await bot.sendVideo(chatId, tempFile, { 
+                caption: message, 
+                parse_mode: 'HTML',
+                supports_streaming: true
+              });
               fs.unlinkSync(tempFile);
             } else {
               throw new Error("Downloaded file not found");
