@@ -167,11 +167,7 @@ export class FacebookScraper {
                            el.getAttribute('aria-label')?.includes('Comment') ||
                            el.getAttribute('aria-label')?.includes('تعليق') ||
                            el.classList.contains('x1lliihq') ||
-                           el.querySelector('[role="complementary"]') ||
-                           el.innerText.includes('تم التعليق بواسطة') ||
-                           el.innerText.includes('Commented on by') ||
-                           el.innerText.includes('التعليق باسم') ||
-                           el.innerText.includes('تعليق باسم');
+                           el.querySelector('[role="complementary"]');
           
           // Must have a message area to be considered a main post
           const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
