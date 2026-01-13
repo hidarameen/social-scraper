@@ -165,13 +165,26 @@ export class FacebookScraper {
 
           // Find Media
           const img = container.querySelector('img[src^="http"]:not([src*="static.xx.fbcdn.net"])');
-          const video = container.querySelector('video');
+          // Improved video detection: search for video elements or common video containers/links
+          let videoUrl = '';
+          const videoEl = container.querySelector('video');
+          if (videoEl) {
+            videoUrl = (videoEl as HTMLVideoElement).src;
+          }
+          
+          // If no direct video src, check for links that look like video/reel/watch links
+          if (!videoUrl) {
+            const videoLink = container.querySelector('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]');
+            if (videoLink) {
+              videoUrl = (videoLink as HTMLAnchorElement).href;
+            }
+          }
 
           results.push({
             text: postText,
             url: postUrl,
             image: img ? (img as HTMLImageElement).src : '',
-            video: video ? (video as HTMLVideoElement).src : '',
+            video: videoUrl,
             platform: 'Facebook',
             date: new Date().toLocaleString('ar-EG')
           });
@@ -204,41 +217,53 @@ export class FacebookScraper {
   async scrapeLegacy(task: Task) {
     console.log(`[Facebook Scraper] Attempting legacy HTML scrape for: ${task.url}`);
     try {
-      // Use a mobile user agent as it sometimes bypasses some desktop-only protections
-      const response = await axios.get(task.url, {
+      // Use mbasic.facebook.com as it is the most reliable for raw HTML scraping
+      const mobileUrl = task.url.includes('facebook.com') ? task.url.replace('www.facebook.com', 'mbasic.facebook.com') : task.url;
+      
+      const response = await axios.get(mobileUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Upgrade-Insecure-Requests': '1',
-          'Cache-Control': 'max-age=0'
+          'Referer': 'https://mbasic.facebook.com/',
         },
         timeout: 15000,
-        validateStatus: (status) => status < 500 // Accept 4xx errors to log them better
+        validateStatus: (status) => status < 500
       });
 
-      if (response.status === 400 || response.status === 403 || response.status === 404) {
-        throw new Error(`Facebook blocked the request (Status ${response.status}). Non-browser scraping is highly restricted.`);
+      if (response.status !== 200) {
+        throw new Error(`Facebook blocked the request (Status ${response.status}).`);
       }
 
       const $ = cheerio.load(response.data);
       const posts: any[] = [];
       const seenTexts = new Set();
 
-      // Legacy Facebook selectors (very unreliable now, but fulfilling the 'html' request)
-      $('div[role="article"], .userContentWrapper, ._5pcr').each((_, el) => {
+      // mbasic selectors are distinct (usually tables and simple divs)
+      $('div[role="article"], table[role="presentation"]').each((_, el) => {
         if (posts.length >= (task.postLimit || 10)) return;
 
         const container = $(el);
-        const postText = container.find('[data-ad-comet-preview="message"], .userContent, [data-testid="post_message"]').text().trim();
+        // Extract post text - usually in a div or p
+        const postText = container.find('p, .msg, div > div > div').first().text().trim();
         
         if (postText && postText.length > 5 && !seenTexts.has(postText)) {
           seenTexts.add(postText);
-          const link = container.find('a[href*="/posts/"], a[href*="/permalink.php"]').attr('href');
+          
+          let postUrl = task.url;
+          // Look for 'Full Story' or similar links in mbasic
+          const link = container.find('a[href*="/story.php"], a[href*="/posts/"], a[href*="/permalink.php"]').attr('href');
+          if (link) {
+            // Fix: ensure the link is correctly formatted and not just a relative path
+            const cleanPath = link.split('?')[0]; // Remove tracking params
+            postUrl = cleanPath.startsWith('http') ? cleanPath : `https://facebook.com${cleanPath}`;
+            // Convert mobile links back to desktop for better compatibility in Telegram
+            postUrl = postUrl.replace('mbasic.facebook.com', 'facebook.com').replace('m.facebook.com', 'facebook.com');
+          }
           
           posts.push({
             text: postText,
-            url: link ? (link.startsWith('http') ? link : `https://facebook.com${link}`) : task.url,
+            url: postUrl,
             platform: 'Facebook',
             date: new Date().toLocaleString('ar-EG')
           });
@@ -247,10 +272,10 @@ export class FacebookScraper {
 
       return {
         items: posts.length,
-        message: `Scraped ${posts.length} posts using HTML method. Note: This method is less reliable for Facebook.`,
+        message: `Scraped ${posts.length} posts using HTML method.`,
         data: posts.map(p => ({
           ...p,
-          id: Math.random().toString(36).substring(7),
+          id: p.url.split('/').filter(Boolean).pop()?.split('?')[0] || Math.random().toString(36).substring(7),
           accountName: task.url.split('/').filter(Boolean).pop() || 'User'
         }))
       };
@@ -258,7 +283,7 @@ export class FacebookScraper {
       console.error("[Facebook Scraper] Legacy Error:", error.message);
       return { 
         items: 0, 
-        message: `HTML Scraping failed: ${error.message}. Facebook often blocks non-browser requests. Please use 'browser' method.` 
+        message: `HTML Scraping failed: ${error.message}. Please use 'browser' method for better results.` 
       };
     }
   }
