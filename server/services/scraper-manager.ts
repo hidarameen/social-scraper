@@ -95,11 +95,15 @@ export class ScraperManager {
           uniqueBatch.push(p);
         } else {
           duplicateInBatchCount++;
-          await this.storage.createLog({
-            taskId: task.id,
-            status: "duplicate",
-            message: `Skipped duplicate post in batch: ${pid || 'unknown'}`,
-          });
+          try {
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "duplicate",
+              message: `Skipped duplicate post in batch: ${pid || 'unknown'}`,
+            });
+          } catch (e) {
+            console.error("Log error (duplicate):", e);
+          }
         }
       }
 
@@ -110,18 +114,26 @@ export class ScraperManager {
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
           newPosts.push(post);
-          await this.storage.createLog({
-            taskId: task.id,
-            status: "found",
-            message: `Found new post: ${post.normalizedId}`,
-          });
+          try {
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "found",
+              message: `Found new post: ${post.normalizedId}`,
+            });
+          } catch (e) {
+            console.error("Log error (found):", e);
+          }
         } else {
           alreadySentCount++;
-          await this.storage.createLog({
-            taskId: task.id,
-            status: "skipped",
-            message: `Post already sent: ${post.normalizedId}`,
-          });
+          try {
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "skipped",
+              message: `Post already sent: ${post.normalizedId}`,
+            });
+          } catch (e) {
+            console.error("Log error (skipped):", e);
+          }
         }
       }
 
