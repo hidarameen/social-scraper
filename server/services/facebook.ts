@@ -168,24 +168,28 @@ export class FacebookScraper {
                            el.querySelector('[role="complementary"]');
           
           // Must have a message area to be considered a main post
-          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"]');
+          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
           
-          return !isComment && hasMessage;
+          // Verify it's a top-level post container (usually has aria-posinset or specific data attributes)
+          const isTopLevel = el.hasAttribute('aria-posinset') || el.closest('[data-pagelet*="FeedUnit"]') || el.parentElement?.closest('[role="article"]') === null;
+
+          return !isComment && hasMessage && isTopLevel;
         });
         
         for (const container of containers) {
           if (results.length >= (limit || 10)) break;
 
-          // Extract text from common Facebook post structures
+          // Extract text from common Facebook post structures with clear priority
           const textSelectors = [
             '[data-ad-comet-preview="message"]',
             '[data-ad-preview="message"]',
             '.userContent',
-            'div[dir="auto"]',
+            'div[dir="auto"] span',
             '[data-testid="post_message"]',
             '.x1iorvi4',
             '.x1yzt60 .x1n2onr6',
-            'div.xdj266r' // Added another potential text selector
+            'div.xdj266r',
+            'div[style*="text-align"]'
           ];
 
           let postText = '';
@@ -193,10 +197,13 @@ export class FacebookScraper {
             const el = container.querySelector(sel);
             if (el) {
               const clone = el.cloneNode(true) as HTMLElement;
-              // Remove "See more" text if it survived expansion
-              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"]').forEach(b => b.remove());
+              // Remove "See more" text, buttons, and other metadata that shouldn't be in the text body
+              clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"]').forEach(b => b.remove());
               const content = clone.textContent?.trim() || '';
-              if (content.length > postText.length) postText = content;
+              if (content.length > 5) {
+                postText = content;
+                break; // Found the primary text container, stop looking
+              }
             }
           }
 
@@ -330,8 +337,10 @@ export class FacebookScraper {
         if (posts.length >= (task.postLimit || 10)) return;
 
         const container = $(el);
-        // Extract post text - usually in a div or p
-        const postText = container.find('p, .msg, div > div > div').first().text().trim();
+        
+        // Better targeting for mbasic post content
+        // mbasic typically puts the post text in a div that isn't nested too deep and isn't part of the header/footer
+        const postText = container.find('div.msg, div > div > span, div > p').first().text().trim();
         
         if (postText && postText.length > 5 && !seenTexts.has(postText)) {
           seenTexts.add(postText);
