@@ -8,7 +8,11 @@ export class InstagramScraper implements IScraper {
     try {
       // Instagram requires login for almost all scraping.
       // Best practice: Use Instagram Graph API or AppID-based scrapers.
-      return { items: 1, message: "Instagram page pinged. Full scraping requires session cookies or official API." };
+      return { 
+        items: 0, 
+        message: "Instagram page pinged. Full scraping requires session cookies or official API.",
+        data: [] 
+      };
     } catch (e: any) {
       return { items: 0, message: `Instagram scraping failed: ${e.message}` };
     }

@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema, type InsertTask, platforms, scrapeMethods } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -24,7 +25,7 @@ import { useCreateTask, useUpdateTask } from "@/hooks/use-tasks";
 import { useAuth } from "@/hooks/use-auth";
 
 interface TaskFormProps {
-  task?: InsertTask & { id?: number };
+  task?: InsertTask & { id?: number, messageTemplate?: string | null };
   onSuccess?: () => void;
 }
 
@@ -44,6 +45,7 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
       postLimit: task?.postLimit || 10,
       scrapeMethod: task?.scrapeMethod || "html",
       status: task?.status || "active",
+      messageTemplate: (task as any)?.messageTemplate || "<b>[ScrapeMaster]</b>\nAccount: {account}\nPlatform: {platform}\nDate: {date}\n\n{text}\n\n<a href=\"{url}\">View Post</a>",
     },
   });
 
@@ -179,6 +181,28 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
                   onValueChange={(vals) => field.onChange(vals[0])}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="messageTemplate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Telegram Message Template</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Enter template..." 
+                  className="min-h-[120px] font-mono text-xs"
+                  {...field} 
+                  value={field.value || ""} 
+                />
+              </FormControl>
+              <FormDescription>
+                Placeholders: &#123;text&#125;, &#123;url&#125;, &#123;platform&#125;, &#123;account&#125;, &#123;date&#125;. Supports HTML.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

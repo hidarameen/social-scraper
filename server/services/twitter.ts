@@ -12,7 +12,11 @@ export class TwitterScraper implements IScraper {
       const response = await axios.get(task.url, {
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
-      return { items: 2, message: "Successfully fetched Twitter page. Note: Full content extraction requires API keys or advanced bypass." };
+      return { 
+        items: 0, 
+        message: "Successfully fetched Twitter page. Note: Full content extraction requires API keys or advanced bypass.",
+        data: []
+      };
     } catch (e: any) {
       return { items: 0, message: `Twitter block detected or invalid URL: ${e.message}` };
     }

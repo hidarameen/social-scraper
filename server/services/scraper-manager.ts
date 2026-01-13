@@ -101,7 +101,19 @@ export class ScraperManager {
       if (task.target && newPosts.length > 0) {
         // Send in reverse order so newest is last in Telegram
         for (const post of [...newPosts].reverse()) {
-          const notifyMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\n\n${post.text}\n\n<a href="${post.url}">View Post</a>`;
+          let notifyMsg = task.messageTemplate || `<b>[ScrapeMaster]</b>\nPlatform: {platform}\nURL: {url}\n\n{text}\n\n<a href="{url}">View Post</a>`;
+          
+          // Replace placeholders safely
+          const safeReplace = (tmpl: string, key: string, val: any) => {
+            return tmpl.split(`{${key}}`).join(val || '');
+          };
+
+          notifyMsg = safeReplace(notifyMsg, 'platform', post.platform || task.platform);
+          notifyMsg = safeReplace(notifyMsg, 'url', post.url);
+          notifyMsg = safeReplace(notifyMsg, 'text', post.text);
+          notifyMsg = safeReplace(notifyMsg, 'account', post.accountName || '');
+          notifyMsg = safeReplace(notifyMsg, 'date', post.date || '');
+
           await this.telegram.sendMessage(task.userId, task.target, notifyMsg, post.image);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }

@@ -121,7 +121,10 @@ export class FacebookScraper implements IScraper {
               id: postId,
               text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
               url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url,
-              image: postImage
+              image: postImage,
+              accountName: task.url.split('/').pop() || 'Facebook User',
+              platform: 'Facebook',
+              date: new Date().toLocaleString('ar-EG')
             });
           }
         }
