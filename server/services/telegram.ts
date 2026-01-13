@@ -4,12 +4,49 @@ import path from "path";
 import fs from "fs";
 import youtubedl from "youtube-dl-exec";
 import { createHash } from "crypto";
+import ffmpeg from "fluent-ffmpeg";
 
 export class TelegramService {
   private storage: IStorage;
 
   constructor(storage: IStorage) {
     this.storage = storage;
+  }
+
+  private async getVideoMetadata(filePath: string): Promise<{ duration?: number, width?: number, height?: number }> {
+    return new Promise((resolve) => {
+      ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) {
+          console.error("FFprobe error:", err);
+          resolve({});
+          return;
+        }
+        const duration = metadata.format.duration;
+        const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+        resolve({
+          duration: duration ? Math.floor(duration) : undefined,
+          width: videoStream?.width,
+          height: videoStream?.height
+        });
+      });
+    });
+  }
+
+  private async generateThumbnail(videoPath: string, thumbnailPath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      ffmpeg(videoPath)
+        .screenshots({
+          timestamps: ['1'],
+          filename: path.basename(thumbnailPath),
+          folder: path.dirname(thumbnailPath),
+          size: '320x?'
+        })
+        .on('end', () => resolve(true))
+        .on('error', (err) => {
+          console.error("Thumbnail generation error:", err);
+          resolve(false);
+        });
+    });
   }
 
   async sendMessage(userId: number, target: string, message: string, image?: string, video?: string) {
@@ -36,7 +73,7 @@ export class TelegramService {
       if (video) {
         try {
           console.log(`Telegram Service: Processing video URL: ${video}`);
-          const isFacebookVideo = video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/');
+          const isFacebookVideo = video.includes('facebook.com') || video.includes('fb.watch') || video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/');
           
           if (isFacebookVideo) {
             console.log(`Telegram Service: Downloading video from: ${video}`);
@@ -44,24 +81,19 @@ export class TelegramService {
             const urlHash = createHash('md5').update(video).digest('hex').substring(0, 8);
             const uniqueId = `${Date.now()}_${urlHash}`;
             const tempFile = path.join("/tmp", `fb_video_${uniqueId}.mp4`);
+            const thumbFile = path.join("/tmp", `fb_thumb_${uniqueId}.jpg`);
             
             console.log(`Telegram Service: Target temp file: ${tempFile}`);
             
             try {
-              // Get video info to check if we can get a direct mp4 link or if we must download
-              // Using a slightly more aggressive format selection for Telegram compatibility
-              const formatStr = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
-              
+              // Try to download with best quality mp4
               await youtubedl(video, {
                 output: tempFile,
                 noCheckCertificates: true,
-                format: formatStr,
+                format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 recodeVideo: 'mp4',
                 addHeader: [
                   'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                  'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                  'Accept-Language:en-US,en;q=0.9',
-                  'Sec-Fetch-Mode:navigate'
                 ]
               });
 
@@ -70,12 +102,26 @@ export class TelegramService {
                 console.log(`Telegram Service: Downloaded video size: ${stats.size} bytes. Path: ${tempFile}`);
                 
                 if (stats.size > 0) {
-                  // Ensure we send as a document if it's too large, but for standard videos try sendVideo first
-                  await bot.sendVideo(chatId, tempFile, { 
+                  // Get metadata for duration
+                  const meta = await this.getVideoMetadata(tempFile);
+                  
+                  // Generate thumbnail
+                  const hasThumb = await this.generateThumbnail(tempFile, thumbFile);
+
+                  const options: any = { 
                     caption: message, 
                     parse_mode: 'HTML',
                     supports_streaming: true,
-                  });
+                    duration: meta.duration,
+                    width: meta.width,
+                    height: meta.height
+                  };
+
+                  if (hasThumb && fs.existsSync(thumbFile)) {
+                    options.thumb = thumbFile;
+                  }
+
+                  await bot.sendVideo(chatId, tempFile, options);
                   console.log(`Telegram Service: Video sent successfully to ${chatId}`);
                 } else {
                   throw new Error("Downloaded file is empty");
@@ -84,15 +130,12 @@ export class TelegramService {
                 throw new Error("Downloaded file not found after yt-dlp execution");
               }
             } finally {
-              // Always try to clean up the temp file
-              if (fs.existsSync(tempFile)) {
-                try {
-                  fs.unlinkSync(tempFile);
-                  console.log(`Telegram Service: Cleaned up temp file ${tempFile}`);
-                } catch (delErr) {
-                  console.error(`Failed to delete temp file ${tempFile}:`, delErr);
+              // Always try to clean up temp files
+              [tempFile, thumbFile].forEach(f => {
+                if (fs.existsSync(f)) {
+                  try { fs.unlinkSync(f); } catch (e) {}
                 }
-              }
+              });
             }
           } else {
             console.log(`Telegram Service: Sending video as direct URL: ${video}`);

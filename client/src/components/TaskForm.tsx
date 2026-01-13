@@ -213,9 +213,9 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
               <FormLabel>Check Interval: {field.value} minutes</FormLabel>
               <FormControl>
                 <Slider
-                  min={5}
+                  min={1}
                   max={1440}
-                  step={5}
+                  step={1}
                   defaultValue={[field.value || 60]}
                   onValueChange={(vals) => field.onChange(vals[0])}
                 />
