@@ -112,16 +112,22 @@ export class FacebookScraper implements IScraper {
           return !!(src && src.startsWith('http') && !src.includes('static.xx.fbcdn.net') && (width > 100 || !width));
         }).first().attr('src');
         
-        if (postText || postImage) {
+        // Try to find a video in the post
+        const postVideo = $(el).find('video').first().attr('src') || 
+                          $(el).find('video source').first().attr('src') ||
+                          $(el).find('[data-video-url]').first().attr('data-video-url');
+        
+        if (postText || postImage || postVideo) {
           // Clean up text: remove "See more" etc if present at the end
           postText = postText.replace(/See more$/i, '').trim();
           
-          if (postText || postImage) {
+          if (postText || postImage || postVideo) {
             posts.push({
               id: postId,
               text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
               url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url,
               image: postImage,
+              video: postVideo,
               accountName: task.url.split('/').pop() || 'Facebook User',
               platform: 'Facebook',
               date: new Date().toLocaleString('ar-EG')

@@ -8,7 +8,7 @@ export class TelegramService {
     this.storage = storage;
   }
 
-  async sendMessage(userId: number, target: string, message: string, image?: string) {
+  async sendMessage(userId: number, target: string, message: string, image?: string, video?: string) {
     try {
       const settings = await this.storage.getSettings(userId);
       const botToken = settings.find(s => s.key === 'telegram_bot_token')?.value;
@@ -29,7 +29,9 @@ export class TelegramService {
         chatId = `@${chatId}`;
       }
       
-      if (image) {
+      if (video) {
+        await bot.sendVideo(chatId, video, { caption: message, parse_mode: 'HTML' });
+      } else if (image) {
         await bot.sendPhoto(chatId, image, { caption: message, parse_mode: 'HTML' });
       } else {
         await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });

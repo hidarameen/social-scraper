@@ -118,7 +118,8 @@ export class ScraperManager {
           notifyMsg = safeReplace(notifyMsg, 'url', post.url);
 
           const imageToSend = task.includeImages ? post.image : undefined;
-          await this.telegram.sendMessage(task.userId, task.target, notifyMsg, imageToSend);
+          const videoToSend = task.includeVideos ? post.video : undefined;
+          await this.telegram.sendMessage(task.userId, task.target, notifyMsg, imageToSend, videoToSend);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
