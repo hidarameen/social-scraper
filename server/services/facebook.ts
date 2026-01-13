@@ -156,18 +156,21 @@ export class FacebookScraper {
         const results: any[] = [];
         const seenTexts = new Set();
         
-        // Find article containers or text blocks, specifically looking for top-level posts
-        // Expanded selector to catch more variations of Facebook post containers
-        const containers = Array.from(document.querySelectorAll('[role="article"], .x1yzt60, .x1n2onr6, .x1ja2u2z, div[data-testid="fbfeed_story"], .x9f619.x1n2onr6.x1ja2u2z')).filter(el => {
-          // Filter out elements that are likely comments or within comment sections
+        // Find article containers - strictly targeting posts
+        const containers = Array.from(document.querySelectorAll('[role="article"]')).filter(el => {
+          // Filter out elements that are likely comments, headers, or sidebar elements
           const isComment = el.closest('[role="complementary"]') || 
                            el.closest('[aria-label*="Comment"]') || 
                            el.closest('[aria-label*="تعليق"]') ||
                            el.getAttribute('aria-label')?.includes('Comment') ||
                            el.getAttribute('aria-label')?.includes('تعليق') ||
                            el.classList.contains('x1lliihq') ||
-                           el.querySelector('[role="complementary"]'); 
-          return !isComment;
+                           el.querySelector('[role="complementary"]');
+          
+          // Must have a message area to be considered a main post
+          const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"]');
+          
+          return !isComment && hasMessage;
         });
         
         for (const container of containers) {
