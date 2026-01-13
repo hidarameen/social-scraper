@@ -77,8 +77,8 @@ export class ScraperManager {
 
       const result = await scraper.scrape(task);
       
+      console.log(`[ScraperManager] Result data:`, JSON.stringify(result.data, null, 2));
       let allPosts = result.data || [];
-      if (!Array.isArray(allPosts)) allPosts = [];
 
       // Deduplicate within the current batch first
       const uniqueBatch = [];
@@ -156,6 +156,12 @@ export class ScraperManager {
         // Send in reverse order so newest is last in Telegram
         for (const post of [...newPosts].reverse()) {
           try {
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "running",
+              message: `Processing post: ${post.normalizedId}`,
+            });
+
             let notifyMsg = task.messageTemplate || `<b>[ScrapeMaster]</b>\nPlatform: {platform}\nURL: {url}\n\n{text}\n\n<a href="{url}">View Post</a>`;
             
             // Replace placeholders safely

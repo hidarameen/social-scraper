@@ -210,9 +210,7 @@ export class FacebookScraper {
           // LOGGING STEP
           try {
             const shortText = postText.substring(0, 50).replace(/\n/g, ' ') + "...";
-            const logMsg = `[Extraction] Found post: "${shortText}" (ID: ${postId})`;
-            // Note: In evaluate context, we can't easily call external this.storage
-            // We will log them together after evaluation
+            // postId is defined later, using a placeholder for logging
           } catch (e) {}
 
           if (!postText || postText.length < 5 || seenTexts.has(postText)) continue;
@@ -272,37 +270,44 @@ export class FacebookScraper {
 
       if (!browser) throw new Error("Browser closed unexpectedly before completion");
 
-      // Detailed logging of found posts
+      // Deduplicate posts based on URL or ID
+      const uniquePosts = [];
+      const seenUrls = new Set();
       for (const p of posts) {
-        try {
-          const shortText = p.text.substring(0, 60).replace(/\n/g, ' ') + "...";
-          await this.storage.createLog({
-            taskId: task.id,
-            status: "running",
-            message: `[Extraction] Extracted post text: "${shortText}" (URL: ${p.url})`,
-          });
-        } catch (e) {}
+        if (p.url && !seenUrls.has(p.url)) {
+          seenUrls.add(p.url);
+          uniquePosts.push(p);
+        }
       }
 
-      await browser.close();
-      
+      // Detailed logging of found posts
+      if (posts && posts.length > 0) {
+        console.log(`[Facebook Scraper] Found ${posts.length} posts. Preparing to log each...`);
+        for (const p of posts) {
+          try {
+            const shortText = p.text.substring(0, 60).replace(/\n/g, ' ') + "...";
+            await this.storage.createLog({
+              taskId: task.id,
+              status: "running",
+              message: `[Extraction] Extracted post text: "${shortText}" (URL: ${p.url})`,
+            });
+            console.log(`[Facebook Scraper] Extraction log created for: ${p.url}`);
+          } catch (e) {
+            console.error("[Facebook Scraper] Failed to create extraction log:", e);
+          }
+        }
+      }
+
       return {
-        items: posts.length,
-        message: `Scraped ${posts.length} posts.`,
-        data: posts.map(p => {
-          // Keep the original platform-extracted ID if available, otherwise fallback
-          const id = p.id || (p.url ? p.url.split('/').filter(Boolean).pop()?.split('?')[0] : Math.random().toString(36).substring(7));
-          return {
-            ...p,
-            id: id,
-            url: p.url || task.url,
-            accountName: task.url.split('/').filter(Boolean).pop() || 'User'
-          };
-        })
+        items: uniquePosts.length,
+        message: `Scraped ${uniquePosts.length} posts.`,
+        data: uniquePosts
       };
 
+      } finally {
+        if (browser) await browser.close().catch(() => {});
+      }
     } catch (error: any) {
-      if (browser) await browser.close();
       console.error("[Browser Scraper] Final Error:", error.message);
       return { items: 0, message: `Error: ${error.message}` };
     }
