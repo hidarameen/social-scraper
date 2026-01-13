@@ -87,7 +87,14 @@ export class ScraperManager {
 
       // Send to Telegram if items found or for testing
       if (task.target) {
-        const notifyMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\nResult: ${result.message}`;
+        let notifyMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\nResult: ${result.message}\n\n`;
+        
+        if (result.data && Array.isArray(result.data)) {
+          result.data.forEach((post: any, idx: number) => {
+            notifyMsg += `<b>Post ${idx + 1}:</b>\n${post.text}\n<a href="${post.url}">View Post</a>\n\n`;
+          });
+        }
+        
         await this.telegram.sendMessage(task.userId, task.target, notifyMsg);
       }
 

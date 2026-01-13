@@ -83,7 +83,23 @@ export class FacebookScraper implements IScraper {
       }
 
       const $ = cheerio.load(response.data);
-      const postCount = $('[role="article"]').length || 0; 
+      const posts: { text: string, url: string }[] = [];
+      
+      $('[role="article"]').each((i, el) => {
+        if (i >= (task.postLimit || 10)) return;
+        
+        const postText = $(el).find('[data-ad-preview="message"], .xdj266r').text().trim();
+        const postLink = $(el).find('a[href*="/posts/"], a[href*="/permalink.php"]').first().attr('href');
+        
+        if (postText) {
+          posts.push({
+            text: postText.substring(0, 500) + (postText.length > 500 ? '...' : ''),
+            url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url
+          });
+        }
+      });
+
+      const postCount = posts.length;
 
       if (postCount === 0 && !fbCookies) {
         throw new Error("No posts found. You likely need cookies to view this profile.");
@@ -91,7 +107,8 @@ export class FacebookScraper implements IScraper {
 
       return { 
         items: postCount, 
-        message: `Scraped ${postCount} posts from Facebook. ${fbCookies ? '(Using Cookies)' : '(Public View)'}` 
+        message: `Scraped ${postCount} posts from Facebook. ${fbCookies ? '(Using Cookies)' : '(Public View)'}`,
+        data: posts
       };
     } catch (error: any) {
       console.error("Facebook scraping error:", error.message);
