@@ -83,7 +83,11 @@ export class FacebookScraper implements IScraper {
       }
 
       const $ = cheerio.load(response.data);
-      const postCount = $('[role="article"]').length || 5; 
+      const postCount = $('[role="article"]').length || 0; 
+
+      if (postCount === 0 && !fbCookies) {
+        throw new Error("No posts found. You likely need cookies to view this profile.");
+      }
 
       return { 
         items: postCount, 

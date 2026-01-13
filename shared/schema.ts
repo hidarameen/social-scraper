@@ -27,7 +27,7 @@ export const tasks = pgTable("tasks", {
 
 export const logs = pgTable("logs", {
   id: serial("id").primaryKey(),
-  taskId: integer("task_id").references(() => tasks.id),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
   status: text("status").notNull(), 
   message: text("message"),
   itemsFound: integer("items_found").default(0),

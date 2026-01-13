@@ -1,8 +1,9 @@
 import { IStorage } from "../storage";
 import { Task } from "@shared/schema";
+import { TelegramService } from "./telegram";
 
 export interface IScraper {
-  scrape(task: Task): Promise<{ items: number, message: string }>;
+  scrape(task: Task): Promise<{ items: number, message: string, data?: any }>;
 }
 
 import { FacebookScraper } from "./facebook";
@@ -14,10 +15,12 @@ import { TiktokScraper } from "./tiktok";
 export class ScraperManager {
   private storage: IStorage;
   private scrapers: Record<string, IScraper>;
+  private telegram: TelegramService;
   private interval: NodeJS.Timeout | null = null;
 
   constructor(storage: IStorage) {
     this.storage = storage;
+    this.telegram = new TelegramService(storage);
     this.scrapers = {
       facebook: new FacebookScraper(),
       twitter: new TwitterScraper(),
@@ -81,6 +84,12 @@ export class ScraperManager {
 
       // Update last run
       await this.storage.updateTask(task.id, { lastRun: new Date() });
+
+      // Send to Telegram if items found or for testing
+      if (task.target) {
+        const notifyMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\nResult: ${result.message}`;
+        await this.telegram.sendMessage(task.userId, task.target, notifyMsg);
+      }
 
     } catch (error: any) {
       await this.storage.createLog({
