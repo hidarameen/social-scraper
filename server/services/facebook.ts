@@ -8,6 +8,13 @@ export class FacebookScraper {
     
     let browser;
     try {
+      // Check for scrape method
+      const useBrowser = task.scrapeMethod === 'browser';
+      
+      if (!useBrowser) {
+        return this.scrapeLegacy(task);
+      }
+
       // 1. Fetch available cookies for this user and platform
       const userCookies = await storage.getCookies(task.userId);
       const fbCookies = userCookies.filter(c => c.platform === 'facebook');
@@ -45,9 +52,8 @@ export class FacebookScraper {
                     if (isNaN(expires) || expires <= 0) expires = -1;
                     
                     let domain = parts[0].trim();
-                    if (!domain.startsWith('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
-                      domain = '.' + domain.replace(/^\./, '');
-                    }
+                    // Remove leading dot for Playwright compatibility
+                    domain = domain.replace(/^\./, '');
 
                     return {
                       name: parts[5].trim(),
@@ -78,7 +84,7 @@ export class FacebookScraper {
             return [{
               name: name,
               value: value,
-              domain: '.facebook.com',
+              domain: 'facebook.com',
               path: '/',
               secure: true
             }];
@@ -102,7 +108,6 @@ export class FacebookScraper {
             await context.addCookies(playwrightCookies);
           } catch (e: any) {
             console.error(`[Browser Scraper] Critical error adding cookies: ${e.message}`);
-            // If adding cookies fails, we might still want to try scraping without them or let the user know
           }
         }
       }
@@ -214,6 +219,83 @@ export class FacebookScraper {
         items: 0,
         message: `Browser Scraper Error: ${error.message}`
       };
+    }
+  }
+
+  async scrapeLegacy(task: Task) {
+    console.log(`[Legacy Scraper] Attempting to scrape Facebook: ${task.url}`);
+    try {
+      const userCookies = await storage.getCookies(task.userId);
+      const fbCookies = userCookies
+        .filter(c => c.platform === 'facebook')
+        .map(c => {
+          if (c.value.includes('\t') || c.value.toLowerCase().includes('netscape')) {
+            return c.value
+              .split('\n')
+              .map(line => line.trim())
+              .filter(line => line && !line.startsWith('#'))
+              .map(line => {
+                const parts = line.split(/\s+/);
+                if (parts.length >= 7) {
+                  const name = parts[5].trim();
+                  const value = parts[6].trim();
+                  return `${name}=${value}`;
+                }
+                return '';
+              })
+              .filter(Boolean)
+              .join('; ');
+          }
+          const cleanValue = c.value.replace(/[\r\n\t]/g, ' ').replace(/[^\x20-\x7E]/g, '').trim();
+          return cleanValue.includes('=') ? cleanValue : `${c.name}=${cleanValue}`;
+        })
+        .filter(Boolean)
+        .join('; ');
+
+      const headers: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      };
+
+      if (fbCookies) {
+        headers['Cookie'] = fbCookies;
+      }
+
+      const axios = (await import('axios')).default;
+      const response = await axios.get(task.url, {
+        headers,
+        timeout: 15000,
+        validateStatus: (status) => status < 500,
+      });
+
+      if (response.status >= 400) {
+        throw new Error(`Facebook returned status ${response.status}`);
+      }
+
+      const cheerio = await import('cheerio');
+      const $ = cheerio.load(response.data);
+      const posts: any[] = [];
+      
+      $('[role="article"]').each((i, el) => {
+        if (i >= (task.postLimit || 10)) return;
+        const postText = $(el).find('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent').first().text().trim();
+        if (postText) {
+          posts.push({
+            id: Math.random().toString(36).substring(7),
+            text: postText,
+            url: task.url,
+            platform: 'Facebook',
+            date: new Date().toLocaleString('ar-EG')
+          });
+        }
+      });
+
+      return { 
+        items: posts.length, 
+        message: `Scraped ${posts.length} posts from Facebook (Legacy).`,
+        data: posts
+      };
+    } catch (error: any) {
+      return { items: 0, message: `Legacy Scraper Error: ${error.message}` };
     }
   }
 }
