@@ -157,13 +157,15 @@ export class FacebookScraper {
         const seenTexts = new Set();
         
         // Find article containers or text blocks, specifically looking for top-level posts
-        const containers = Array.from(document.querySelectorAll('[role="article"]')).filter(el => {
+        // Expanded selector to catch more variations of Facebook post containers
+        const containers = Array.from(document.querySelectorAll('[role="article"], .x1yzt60, .x1n2onr6, .x1ja2u2z')).filter(el => {
           // Filter out elements that are likely comments or within comment sections
           const isComment = el.closest('[role="complementary"]') || 
                            el.closest('[aria-label*="Comment"]') || 
                            el.closest('[aria-label*="تعليق"]') ||
                            el.getAttribute('aria-label')?.includes('Comment') ||
-                           el.getAttribute('aria-label')?.includes('تعليق');
+                           el.getAttribute('aria-label')?.includes('تعليق') ||
+                           el.classList.contains('x1lliihq'); // Common class for comments
           return !isComment;
         });
         
@@ -176,7 +178,8 @@ export class FacebookScraper {
             '[data-ad-preview="message"]',
             '.userContent',
             'div[dir="auto"]',
-            '[data-testid="post_message"]'
+            '[data-testid="post_message"]',
+            '.x1iorvi4' // New common class for post text
           ];
 
           let postText = '';
@@ -195,7 +198,7 @@ export class FacebookScraper {
           seenTexts.add(postText);
 
           // Find Link
-          const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"]');
+          const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"], a[href*="/story.php"]');
           const postUrl = link ? (link as HTMLAnchorElement).href : '';
 
           // Find Media
