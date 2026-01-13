@@ -120,13 +120,12 @@ export class ScraperManager {
       // Update last run and last post ID
       const updates: any = { lastRun: new Date() };
       
-      // Update lastPostId ONLY if we found a NEW newest post
       // result.data[0] is the absolute newest post from the scraper output
       if (Array.isArray(result.data) && result.data.length > 0) {
         const newestPostId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
-        if (newestPostId && newestPostId !== task.lastPostId) {
+        if (newestPostId) {
           updates.lastPostId = newestPostId;
-          console.log(`[ScraperManager] Updating task ${task.id} lastPostId from ${task.lastPostId} to ${newestPostId}`);
+          console.log(`[ScraperManager] Updating task ${task.id} lastPostId to ${newestPostId}`);
         }
       }
       
