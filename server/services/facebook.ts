@@ -136,14 +136,23 @@ export class FacebookScraper implements IScraper {
           // Look for specific video/reel links within the post container only
           const videoLink = $(el).find('a').filter((_, link) => {
             const href = $(link).attr('href') || '';
-            // Must be a link to a video, reel, or watch, and NOT a general profile link
-            return (href.includes('/videos/') || href.includes('/watch/') || href.includes('/reel/')) && 
-                   !href.includes('/groups/') && !href.includes('/events/');
+            const isVideoLink = href.includes('/videos/') || href.includes('/watch/') || href.includes('/reel/');
+            const isNotNav = !href.includes('/groups/') && !href.includes('/events/') && !href.includes('/photos/') && !href.includes('/about/');
+            return isVideoLink && isNotNav;
           }).first().attr('href');
 
           if (videoLink) {
             postVideo = videoLink.startsWith('http') ? videoLink : `https://www.facebook.com${videoLink.startsWith('/') ? '' : '/'}${videoLink}`;
           }
+        }
+
+        // Final verification: ensure we didn't just grab a profile link or something generic
+        if (postVideo && (postVideo.includes('/permalink.php') || postVideo.includes('/posts/')) && !postVideo.includes('video')) {
+           // If we got a post link instead of a video link, check if there's a more specific one
+           const betterLink = $(el).find('a[href*="/reel/"], a[href*="/videos/"]').first().attr('href');
+           if (betterLink) {
+             postVideo = betterLink.startsWith('http') ? betterLink : `https://www.facebook.com${betterLink.startsWith('/') ? '' : '/'}${betterLink}`;
+           }
         }
         
         if (postText || postImage || postVideo) {
