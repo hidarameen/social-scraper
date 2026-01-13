@@ -197,6 +197,14 @@ export class FacebookScraper {
             }
           }
 
+          // LOGGING STEP
+          try {
+            const shortText = postText.substring(0, 50).replace(/\n/g, ' ') + "...";
+            const logMsg = `[Extraction] Found post: "${shortText}" (ID: ${postId})`;
+            // Note: In evaluate context, we can't easily call external this.storage
+            // We will log them together after evaluation
+          } catch (e) {}
+
           if (!postText || postText.length < 5 || seenTexts.has(postText)) continue;
           seenTexts.add(postText);
 
@@ -224,11 +232,23 @@ export class FacebookScraper {
             postId = Buffer.from(postText.substring(0, 100)).toString('base64').substring(0, 32);
           }
 
+          // Find Media
+          const imgEl = container.querySelector('img[src^="http"]:not([src*="static.xx.fbcdn.net"])');
+          const videoEl = container.querySelector('video');
+          let videoUrl = videoEl ? (videoEl as HTMLVideoElement).src : '';
+          
+          if (!videoUrl) {
+            const videoLink = container.querySelector('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]');
+            if (videoLink) {
+              videoUrl = (videoLink as HTMLAnchorElement).href;
+            }
+          }
+
           results.push({
             text: postText,
             url: postUrl || task.url,
             id: postId,
-            image: img ? (img as HTMLImageElement).src : '',
+            image: imgEl ? (imgEl as HTMLImageElement).src : '',
             video: videoUrl,
             platform: 'Facebook',
             date: new Date().toLocaleString('ar-EG')
@@ -238,6 +258,18 @@ export class FacebookScraper {
       }, task.postLimit);
 
       if (!browser) throw new Error("Browser closed unexpectedly before completion");
+
+      // Detailed logging of found posts
+      for (const p of posts) {
+        try {
+          const shortText = p.text.substring(0, 60).replace(/\n/g, ' ') + "...";
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "running",
+            message: `[Extraction] Extracted post text: "${shortText}" (URL: ${p.url})`,
+          });
+        } catch (e) {}
+      }
 
       await browser.close();
       

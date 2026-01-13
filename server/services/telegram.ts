@@ -136,8 +136,14 @@ export class TelegramService {
                   // Generate thumbnail
                   const hasThumb = await this.generateThumbnail(tempFile, thumbFile);
 
+                  // Check caption length (Telegram limit is 1024 characters for media captions)
+                  let caption = message;
+                  if (caption.length > 1000) {
+                    caption = caption.substring(0, 997) + "...";
+                  }
+
                   const options: any = { 
-                    caption: message, 
+                    caption: caption, 
                     parse_mode: 'HTML',
                     supports_streaming: true,
                     duration: meta.duration || 0, // Ensure duration is at least 0
@@ -184,7 +190,11 @@ export class TelegramService {
           await bot.sendMessage(chatId, `${message}\n\n🎬 <b>Video Link:</b> ${video}`, { parse_mode: 'HTML' });
         }
       } else if (image) {
-        await bot.sendPhoto(chatId, image, { caption: message, parse_mode: 'HTML' });
+        let caption = message;
+        if (caption.length > 1000) {
+          caption = caption.substring(0, 997) + "...";
+        }
+        await bot.sendPhoto(chatId, image, { caption: caption, parse_mode: 'HTML' });
       } else {
         await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
       }
