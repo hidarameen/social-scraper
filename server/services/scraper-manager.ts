@@ -75,10 +75,12 @@ export class ScraperManager {
         message: "Starting scrape...",
       });
 
+      console.log(`[ScraperManager] [Task ${task.id}] Running scrape for ${task.platform}`);
       const result = await scraper.scrape(task);
       
       let allPosts = result.data || [];
       if (!Array.isArray(allPosts)) allPosts = [];
+      console.log(`[ScraperManager] [Task ${task.id}] Scraper found ${allPosts.length} posts`);
 
       // Deduplicate within the current batch first
       const uniqueBatch = [];
@@ -99,6 +101,7 @@ export class ScraperManager {
       }
 
       if (duplicateInBatchCount > 0) {
+        console.log(`[ScraperManager] [Task ${task.id}] Batch Deduplication: Removed ${duplicateInBatchCount} duplicates`);
         try {
           await this.storage.createLog({
             taskId: task.id,
@@ -123,6 +126,7 @@ export class ScraperManager {
       }
 
       if (alreadySentCount > 0) {
+        console.log(`[ScraperManager] [Task ${task.id}] DB Filter: ${alreadySentCount} posts already sent`);
         try {
           await this.storage.createLog({
             taskId: task.id,
@@ -133,6 +137,8 @@ export class ScraperManager {
           console.error("Log error:", e);
         }
       }
+
+      console.log(`[ScraperManager] [Task ${task.id}] Final tally: ${newPosts.length} new posts to send`);
 
       await this.storage.createLog({
         taskId: task.id,
@@ -150,9 +156,11 @@ export class ScraperManager {
 
       // Send to Telegram if new items found
       if (task.target && newPosts.length > 0) {
+        console.log(`[ScraperManager] [Task ${task.id}] Sending ${newPosts.length} posts to Telegram: ${task.target}`);
         // Send in reverse order so newest is last in Telegram
         for (const post of [...newPosts].reverse()) {
           try {
+            console.log(`[ScraperManager] [Task ${task.id}] Sending post ID: ${post.normalizedId}`);
             let notifyMsg = task.messageTemplate || `<b>[ScrapeMaster]</b>\nPlatform: {platform}\nURL: {url}\n\n{text}\n\n<a href="{url}">View Post</a>`;
             
             // Replace placeholders safely

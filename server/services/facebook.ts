@@ -17,8 +17,10 @@ export class FacebookScraper {
     let browser;
     try {
       const useBrowser = task.scrapeMethod === 'browser';
+      console.log(`[Facebook Scraper] [${task.id}] Method: ${task.scrapeMethod}`);
       
       if (!useBrowser) {
+        console.log(`[Facebook Scraper] [${task.id}] Using legacy method`);
         return this.scrapeLegacy(task);
       }
 
@@ -168,7 +170,8 @@ export class FacebookScraper {
                            el.querySelector('[role="complementary"]') ||
                            el.innerText.includes('تم التعليق بواسطة') ||
                            el.innerText.includes('Commented on by') ||
-                           el.innerText.includes('التعليق باسم');
+                           el.innerText.includes('التعليق باسم') ||
+                           el.innerText.includes('تعليق باسم');
           
           // Must have a message area to be considered a main post
           const hasMessage = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, div[dir="auto"], [data-testid="post_message"], [data-ad-preview="message"]');
@@ -204,7 +207,7 @@ export class FacebookScraper {
               clone.querySelectorAll('[role="button"], .see-more, a[href*="/posts/"], span[aria-label*="like"], span[aria-label*="comment"], [aria-label*="تعليق"]').forEach(b => b.remove());
               
               // Remove "Commented on by" or similar notification text if it's inside the message area
-              const textToExclude = ['تم التعليق بواسطة', 'Commented on by', 'قام بالتعليق', 'التعليق باسم'];
+              const textToExclude = ['تم التعليق بواسطة', 'Commented on by', 'قام بالتعليق', 'التعليق باسم', 'تعليق باسم'];
               textToExclude.forEach(term => {
                 clone.querySelectorAll('*').forEach(child => {
                   if (child.textContent?.includes(term)) {
@@ -213,7 +216,12 @@ export class FacebookScraper {
                 });
               });
 
-              const content = clone.textContent?.trim() || '';
+              let content = clone.textContent?.trim() || '';
+              // Additional cleanup for cases where the text might be at the end of the content but not in its own element
+              textToExclude.forEach(term => {
+                const regex = new RegExp(term + '.*$', 'g');
+                content = content.replace(regex, '').trim();
+              });
               if (content.length > 5) {
                 postText = content;
                 break; // Found the primary text container, stop looking
@@ -290,6 +298,7 @@ export class FacebookScraper {
       for (const p of posts) {
         try {
           const shortText = p.text.substring(0, 60).replace(/\n/g, ' ') + "...";
+          console.log(`[Facebook Scraper] [${task.id}] Extracted post: ${shortText}`);
           await this.storage.createLog({
             taskId: task.id,
             status: "running",
