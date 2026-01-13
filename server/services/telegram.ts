@@ -37,7 +37,8 @@ export class TelegramService {
           console.log(`Telegram Service: Processing video URL: ${video}`);
           if (video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/')) {
             console.log(`Downloading video from: ${video}`);
-            const tempFile = path.join("/tmp", `video_${Date.now()}.mp4`);
+            const uniqueId = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const tempFile = path.join("/tmp", `video_${uniqueId}.mp4`);
             
             await youtubedl(video, {
               output: tempFile,
@@ -57,7 +58,12 @@ export class TelegramService {
                 parse_mode: 'HTML',
                 supports_streaming: true
               });
-              fs.unlinkSync(tempFile);
+              try {
+                fs.unlinkSync(tempFile);
+                console.log(`Telegram Service: Deleted temp file ${tempFile}`);
+              } catch (delErr) {
+                console.error(`Failed to delete temp file ${tempFile}:`, delErr);
+              }
             } else {
               throw new Error("Downloaded file not found");
             }
