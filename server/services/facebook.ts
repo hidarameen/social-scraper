@@ -98,7 +98,12 @@ export class FacebookScraper implements IScraper {
         }
 
         const postLink = $(el).find('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/groups/"]').first().attr('href');
-        
+        let postId = '';
+        if (postLink) {
+          const match = postLink.match(/(?:posts\/|permalink\.php\?story_fbid=)(\d+)/) || postLink.match(/\/(\d+)\/?$/);
+          postId = match ? match[1] : postLink;
+        }
+
         // Try to find a high-quality image in the post
         const postImage = $(el).find('img').filter((_, img) => {
           const src = $(img).attr('src');
@@ -113,6 +118,7 @@ export class FacebookScraper implements IScraper {
           
           if (postText || postImage) {
             posts.push({
+              id: postId,
               text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
               url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url,
               image: postImage

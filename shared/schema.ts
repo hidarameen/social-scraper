@@ -22,6 +22,7 @@ export const tasks = pgTable("tasks", {
   status: text("status", { enum: ["active", "paused", "error"] }).default("active"),
   postLimit: integer("post_limit").default(10),
   scrapeMethod: text("scrape_method", { enum: scrapeMethods }).default("html"),
+  lastPostId: text("last_post_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -74,29 +74,36 @@ export class ScraperManager {
       });
 
       const result = await scraper.scrape(task);
+      
+      let newPosts = result.data || [];
+      if (task.lastPostId && Array.isArray(newPosts)) {
+        const lastIdx = newPosts.findIndex((p: any) => p.id === task.lastPostId);
+        if (lastIdx !== -1) {
+          newPosts = newPosts.slice(0, lastIdx);
+        }
+      }
 
       await this.storage.createLog({
         taskId: task.id,
         status: "success",
-        message: result.message,
-        itemsFound: result.items,
+        message: result.message + (newPosts.length !== result.items ? ` (${newPosts.length} new)` : ''),
+        itemsFound: newPosts.length,
       });
 
-      // Update last run
-      await this.storage.updateTask(task.id, { lastRun: new Date() });
+      // Update last run and last post ID
+      const updates: any = { lastRun: new Date() };
+      if (Array.isArray(result.data) && result.data.length > 0) {
+        updates.lastPostId = result.data[0].id;
+      }
+      await this.storage.updateTask(task.id, updates);
 
-      // Send to Telegram if items found or for testing
-      if (task.target) {
-        if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-          for (const post of result.data) {
-            const notifyMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\n\n${post.text}\n\n<a href="${post.url}">View Post</a>`;
-            await this.telegram.sendMessage(task.userId, task.target, notifyMsg, post.image);
-            // Add a small delay to avoid hitting Telegram rate limits
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        } else {
-          const summaryMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\nResult: ${result.message}`;
-          await this.telegram.sendMessage(task.userId, task.target, summaryMsg);
+      // Send to Telegram if new items found
+      if (task.target && newPosts.length > 0) {
+        // Send in reverse order so newest is last in Telegram
+        for (const post of [...newPosts].reverse()) {
+          const notifyMsg = `<b>[ScrapeMaster]</b>\nPlatform: ${task.platform}\nURL: ${task.url}\n\n${post.text}\n\n<a href="${post.url}">View Post</a>`;
+          await this.telegram.sendMessage(task.userId, task.target, notifyMsg, post.image);
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
