@@ -1,10 +1,10 @@
 import { db } from "./db";
 import { 
-  users, tasks, logs, cookies, proxies, settings,
+  users, tasks, logs, cookies, proxies, settings, sentPosts,
   type User, type InsertUser, type Task, type InsertTask, type Log, type Cookie, type Proxy, type Setting,
   type InsertCookie, type InsertProxy, type InsertSetting
 } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, lt } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -38,6 +38,10 @@ export interface IStorage {
   // Settings
   getSettings(userId: number): Promise<Setting[]>;
   upsertSetting(setting: InsertSetting): Promise<Setting>;
+  // Sent Posts
+  isPostSent(taskId: number, postId: string): Promise<boolean>;
+  markPostAsSent(taskId: number, postId: string): Promise<void>;
+  cleanupSentPosts(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -131,6 +135,18 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return upserted;
+  }
+  // Sent Posts
+  async isPostSent(taskId: number, postId: string): Promise<boolean> {
+    const [sent] = await db.select().from(sentPosts).where(and(eq(sentPosts.taskId, taskId), eq(sentPosts.postId, postId)));
+    return !!sent;
+  }
+  async markPostAsSent(taskId: number, postId: string): Promise<void> {
+    await db.insert(sentPosts).values({ taskId, postId });
+  }
+  async cleanupSentPosts(): Promise<void> {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await db.delete(sentPosts).where(lt(sentPosts.timestamp, twentyFourHoursAgo));
   }
 }
 

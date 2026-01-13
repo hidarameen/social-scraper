@@ -60,6 +60,13 @@ export const settings = pgTable("settings", {
   value: text("value").notNull(),
 });
 
+export const sentPosts = pgTable("sent_posts", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  postId: text("post_id").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, lastRun: true, createdAt: true });
 export const insertCookieSchema = createInsertSchema(cookies).omit({ id: true });

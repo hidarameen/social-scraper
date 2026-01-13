@@ -33,6 +33,8 @@ export class ScraperManager {
   start() {
     // Check every minute
     this.interval = setInterval(() => this.checkTasks(), 60 * 1000);
+    // Cleanup sent posts every hour
+    setInterval(() => this.storage.cleanupSentPosts().catch(err => console.error("Cleanup failed:", err)), 60 * 60 * 1000);
   }
 
   stop() {
@@ -75,85 +77,76 @@ export class ScraperManager {
 
       const result = await scraper.scrape(task);
       
-      let newPosts = result.data || [];
-      if (Array.isArray(newPosts)) {
-        // First, normalize all post IDs to be used for comparison
-        newPosts = newPosts.map((p: any) => ({
-          ...p,
-          normalizedId: (p.id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop() || Math.random().toString(36).substring(7)
-        }));
+      let allPosts = result.data || [];
+      if (!Array.isArray(allPosts)) allPosts = [];
 
-        if (task.lastPostId) {
-          const normalizedLastId = (task.lastPostId || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
-          console.log(`[ScraperManager] Task ${task.id} checking for new posts since: ${normalizedLastId}`);
-          
-          const lastIdx = newPosts.findIndex((p: any) => p.normalizedId === normalizedLastId);
-          
-          if (lastIdx !== -1) {
-            console.log(`[ScraperManager] Task ${task.id} found last post at index ${lastIdx}.`);
-            newPosts = newPosts.slice(0, lastIdx);
-          } else {
-            console.log(`[ScraperManager] Task ${task.id} last post ${normalizedLastId} not in current results.`);
-          }
-        }
-      }
-
-      // Final duplication check within the newPosts themselves
-      const uniqueNewPosts = [];
+      // Deduplicate within the current batch first
+      const uniqueBatch = [];
       const seenInBatch = new Set();
-      for (const p of newPosts) {
-        if (p.normalizedId && !seenInBatch.has(p.normalizedId)) {
-          seenInBatch.add(p.normalizedId);
-          uniqueNewPosts.push(p);
+      for (const p of allPosts) {
+        const pid = (p.id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop() || Math.random().toString(36).substring(7);
+        p.normalizedId = pid;
+        if (!seenInBatch.has(pid)) {
+          seenInBatch.add(pid);
+          uniqueBatch.push(p);
         }
       }
-      newPosts = uniqueNewPosts;
+
+      // Filter against database (sent_posts)
+      const newPosts = [];
+      for (const post of uniqueBatch) {
+        const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
+        if (!alreadySent) {
+          newPosts.push(post);
+        }
+      }
 
       await this.storage.createLog({
         taskId: task.id,
         status: "success",
-        message: result.message + (newPosts.length !== result.items ? ` (${newPosts.length} new)` : ''),
+        message: result.message + ` (${newPosts.length} new)`,
         itemsFound: newPosts.length,
       });
 
       // Update last run and last post ID
       const updates: any = { lastRun: new Date() };
-      
-      // result.data[0] is the absolute newest post from the scraper output
-      if (Array.isArray(result.data) && result.data.length > 0) {
-        const newestPostId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
-        if (newestPostId) {
-          updates.lastPostId = newestPostId;
-          console.log(`[ScraperManager] Updating task ${task.id} lastPostId to ${newestPostId}`);
-        }
+      if (uniqueBatch.length > 0) {
+        updates.lastPostId = uniqueBatch[0].normalizedId;
       }
-      
       await this.storage.updateTask(task.id, updates);
 
       // Send to Telegram if new items found
       if (task.target && newPosts.length > 0) {
         // Send in reverse order so newest is last in Telegram
         for (const post of [...newPosts].reverse()) {
-          let notifyMsg = task.messageTemplate || `<b>[ScrapeMaster]</b>\nPlatform: {platform}\nURL: {url}\n\n{text}\n\n<a href="{url}">View Post</a>`;
-          
-          // Replace placeholders safely
-          const safeReplace = (tmpl: string, key: string, val: any) => {
-            const cleanVal = (val || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            // Use regex with global flag to ensure all occurrences are replaced exactly once per key
-            const placeholder = new RegExp(`\\{${key}\\}`, 'g');
-            return tmpl.replace(placeholder, key === 'url' ? (val || '') : cleanVal);
-          };
+          try {
+            let notifyMsg = task.messageTemplate || `<b>[ScrapeMaster]</b>\nPlatform: {platform}\nURL: {url}\n\n{text}\n\n<a href="{url}">View Post</a>`;
+            
+            // Replace placeholders safely
+            const safeReplace = (tmpl: string, key: string, val: any) => {
+              const cleanVal = (val || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              const placeholder = new RegExp(`\\{${key}\\}`, 'g');
+              return tmpl.replace(placeholder, key === 'url' ? (val || '') : cleanVal);
+            };
 
-          notifyMsg = safeReplace(notifyMsg, 'platform', post.platform || task.platform);
-          notifyMsg = safeReplace(notifyMsg, 'text', post.text);
-          notifyMsg = safeReplace(notifyMsg, 'account', post.accountName || '');
-          notifyMsg = safeReplace(notifyMsg, 'date', post.date || '');
-          notifyMsg = safeReplace(notifyMsg, 'url', post.url);
+            notifyMsg = safeReplace(notifyMsg, 'platform', post.platform || task.platform);
+            notifyMsg = safeReplace(notifyMsg, 'text', post.text);
+            notifyMsg = safeReplace(notifyMsg, 'account', post.accountName || '');
+            notifyMsg = safeReplace(notifyMsg, 'date', post.date || '');
+            notifyMsg = safeReplace(notifyMsg, 'url', post.url);
 
-          const imageToSend = task.includeImages ? post.image : undefined;
-          const videoToSend = task.includeVideos ? post.video : undefined;
-          await this.telegram.sendMessage(task.userId, task.target, notifyMsg, imageToSend, videoToSend);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+            const imageToSend = task.includeImages ? post.image : undefined;
+            const videoToSend = task.includeVideos ? post.video : undefined;
+            
+            await this.telegram.sendMessage(task.userId, task.target, notifyMsg, imageToSend, videoToSend);
+            
+            // Mark as sent in DB
+            await this.storage.markPostAsSent(task.id, post.normalizedId);
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (sendErr: any) {
+            console.error(`Failed to send post ${post.normalizedId}:`, sendErr.message);
+          }
         }
       }
 
