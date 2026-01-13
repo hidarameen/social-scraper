@@ -80,12 +80,12 @@ export class ScraperManager {
         // First, normalize all post IDs to be used for comparison
         newPosts = newPosts.map((p: any) => ({
           ...p,
-          normalizedId: (p.id || '').toString().split(/[?&]/)[0]
+          normalizedId: (p.id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop()
         }));
 
         if (task.lastPostId) {
           console.log(`Checking for new posts. Last post ID: ${task.lastPostId}`);
-          const normalizedLastId = (task.lastPostId || '').toString().split(/[?&]/)[0];
+          const normalizedLastId = (task.lastPostId || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
           
           const lastIdx = newPosts.findIndex((p: any) => p.normalizedId === normalizedLastId);
           
@@ -93,7 +93,9 @@ export class ScraperManager {
             console.log(`Found last post at index ${lastIdx}. New posts: ${lastIdx}`);
             newPosts = newPosts.slice(0, lastIdx);
           } else {
-            console.log(`Last post not found in current results. All ${newPosts.length} posts might be new.`);
+            // Check if any post is older than lastPostId by assuming chronological order (if we had timestamps)
+            // Since we don't have reliable timestamps, we'll just keep the original logic but ensure the ID update is robust
+            console.log(`Last post not found in current results. All ${newPosts.length} posts might be new or lastPostId is too old.`);
           }
         }
       }
@@ -110,7 +112,7 @@ export class ScraperManager {
       // Always update lastPostId with the newest post found in the original result (even if it's already processed)
       // This ensures we always have the most recent ID for the next check
       if (Array.isArray(result.data) && result.data.length > 0) {
-        updates.lastPostId = (result.data[0].id || '').toString().split(/[?&]/)[0];
+        updates.lastPostId = (result.data[0].id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
       }
       await this.storage.updateTask(task.id, updates);
 

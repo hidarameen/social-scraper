@@ -199,12 +199,15 @@ export class FacebookScraper {
       return {
         items: posts.length,
         message: `Scraped ${posts.length} posts.`,
-        data: posts.map(p => ({
-          ...p,
-          id: p.url ? p.url.split('/').filter(Boolean).pop()?.split('?')[0] : Math.random().toString(36).substring(7),
-          url: p.url || task.url,
-          accountName: task.url.split('/').filter(Boolean).pop() || 'User'
-        }))
+        data: posts.map(p => {
+          const id = p.url ? p.url.split('/').filter(Boolean).pop()?.split('?')[0] : Math.random().toString(36).substring(7);
+          return {
+            ...p,
+            id: id,
+            url: p.url || task.url,
+            accountName: task.url.split('/').filter(Boolean).pop() || 'User'
+          };
+        })
       };
 
     } catch (error: any) {
