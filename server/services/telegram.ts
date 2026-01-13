@@ -32,9 +32,9 @@ export class TelegramService {
       if (video) {
         try {
           // If it's a direct URL to a video file, send it as video
-          // If it's a Facebook watch/video link, it might fail to send as direct video
+          // If it's a Facebook watch/video/reel link, it might fail to send as direct video
           // so we fallback to sending as a message with the link
-          if (video.includes('/videos/') || video.includes('/watch/')) {
+          if (video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/')) {
             await bot.sendMessage(chatId, `${message}\n\n🎬 <b>Video Link:</b> ${video}`, { parse_mode: 'HTML' });
           } else {
             await bot.sendVideo(chatId, video, { caption: message, parse_mode: 'HTML' });
