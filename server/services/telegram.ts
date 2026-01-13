@@ -40,7 +40,6 @@ export class TelegramService {
             
             await youtubedl(video, {
               output: tempFile,
-              format: "mp4",
               noCheckCertificates: true,
             });
 
