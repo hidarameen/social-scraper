@@ -83,6 +83,8 @@ export class ScraperManager {
       // Deduplicate within the current batch first
       const uniqueBatch = [];
       const seenInBatch = new Set();
+      let duplicateInBatchCount = 0;
+
       for (const p of allPosts) {
         // IMPROVED: Use URL if available, fallback to text-based hash to ensure stability across runs
         const textHash = (p.text || '').substring(0, 100).replace(/\s+/g, '');
@@ -92,16 +94,37 @@ export class ScraperManager {
         if (pid && !seenInBatch.has(pid)) {
           seenInBatch.add(pid);
           uniqueBatch.push(p);
+        } else {
+          duplicateInBatchCount++;
         }
+      }
+
+      if (duplicateInBatchCount > 0) {
+        await this.storage.createLog({
+          taskId: task.id,
+          status: "running",
+          message: `Filtered ${duplicateInBatchCount} duplicate posts within this batch.`,
+        }).catch(() => {});
       }
 
       // Filter against database (sent_posts)
       const newPosts = [];
+      let alreadySentCount = 0;
       for (const post of uniqueBatch) {
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
           newPosts.push(post);
+        } else {
+          alreadySentCount++;
         }
+      }
+
+      if (alreadySentCount > 0) {
+        await this.storage.createLog({
+          taskId: task.id,
+          status: "running",
+          message: `Found ${alreadySentCount} posts that were already sent previously.`,
+        }).catch(() => {});
       }
 
       await this.storage.createLog({
