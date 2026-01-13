@@ -90,11 +90,17 @@ export class FacebookScraper implements IScraper {
         
         // Try multiple selectors for post content
         const postTextEl = $(el).find('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent').first();
+        
+        // Remove "See more" or "عرض المزيد" buttons from the text before extraction
+        postTextEl.find('[role="button"], .see-more').remove();
+        
         let postText = postTextEl.text().trim();
         
-        // If not found, try a more generic but restricted search to avoid capturing everything
+        // If not found, try a more generic but restricted search
         if (!postText) {
-          postText = $(el).find('div[dir="auto"]').first().text().trim();
+          const genericTextEl = $(el).find('div[dir="auto"]').first();
+          genericTextEl.find('[role="button"], .see-more').remove();
+          postText = genericTextEl.text().trim();
         }
 
         const postLink = $(el).find('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/groups/"]').first().attr('href');
