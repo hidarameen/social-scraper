@@ -80,21 +80,20 @@ export class ScraperManager {
         // First, normalize all post IDs to be used for comparison
         newPosts = newPosts.map((p: any) => ({
           ...p,
-          normalizedId: (p.id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop()
+          normalizedId: (p.id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop() || Math.random().toString(36).substring(7)
         }));
 
         if (task.lastPostId) {
           const normalizedLastId = (task.lastPostId || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
-          console.log(`[ScraperManager] Checking for new posts. Last post ID: ${normalizedLastId}`);
+          console.log(`[ScraperManager] Task ${task.id} checking for new posts since: ${normalizedLastId}`);
           
           const lastIdx = newPosts.findIndex((p: any) => p.normalizedId === normalizedLastId);
           
           if (lastIdx !== -1) {
-            console.log(`[ScraperManager] Found last post at index ${lastIdx}. New posts before slice: ${newPosts.length}`);
+            console.log(`[ScraperManager] Task ${task.id} found last post at index ${lastIdx}.`);
             newPosts = newPosts.slice(0, lastIdx);
-            console.log(`[ScraperManager] After slicing, ${newPosts.length} posts remain as new.`);
           } else {
-            console.log(`[ScraperManager] Last post ID ${normalizedLastId} not found in current results of ${newPosts.length} items. All items considered potentially new.`);
+            console.log(`[ScraperManager] Task ${task.id} last post ${normalizedLastId} not in current results.`);
           }
         }
       }
