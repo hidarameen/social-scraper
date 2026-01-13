@@ -88,14 +88,36 @@ export class FacebookScraper implements IScraper {
       $('[role="article"]').each((i, el) => {
         if (i >= (task.postLimit || 10)) return;
         
-        const postText = $(el).find('[data-ad-preview="message"], .xdj266r').text().trim();
-        const postLink = $(el).find('a[href*="/posts/"], a[href*="/permalink.php"]').first().attr('href');
+        // Try multiple selectors for post content
+        const postTextEl = $(el).find('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent').first();
+        let postText = postTextEl.text().trim();
         
-        if (postText) {
-          posts.push({
-            text: postText.substring(0, 500) + (postText.length > 500 ? '...' : ''),
-            url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url
-          });
+        // If not found, try a more generic but restricted search to avoid capturing everything
+        if (!postText) {
+          postText = $(el).find('div[dir="auto"]').first().text().trim();
+        }
+
+        const postLink = $(el).find('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/groups/"]').first().attr('href');
+        
+        // Try to find a high-quality image in the post
+        const postImage = $(el).find('img').filter((_, img) => {
+          const src = $(img).attr('src');
+          const width = parseInt($(img).attr('width') || '0');
+          // Filter out small icons, emojis, and tracking pixels
+          return !!(src && src.startsWith('http') && !src.includes('static.xx.fbcdn.net') && (width > 100 || !width));
+        }).first().attr('src');
+        
+        if (postText || postImage) {
+          // Clean up text: remove "See more" etc if present at the end
+          postText = postText.replace(/See more$/i, '').trim();
+          
+          if (postText || postImage) {
+            posts.push({
+              text: postText.substring(0, 1000) + (postText.length > 1000 ? '...' : ''),
+              url: postLink ? (postLink.startsWith('http') ? postLink : `https://facebook.com${postLink}`) : task.url,
+              image: postImage
+            });
+          }
         }
       });
 
