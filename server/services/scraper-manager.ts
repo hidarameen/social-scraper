@@ -84,9 +84,12 @@ export class ScraperManager {
       const uniqueBatch = [];
       const seenInBatch = new Set();
       for (const p of allPosts) {
-        const pid = (p.id || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop() || Math.random().toString(36).substring(7);
+        // IMPROVED: Use URL if available, fallback to text-based hash to ensure stability across runs
+        const textHash = (p.text || '').substring(0, 100).replace(/\s+/g, '');
+        const pid = (p.url || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop() || textHash;
+        
         p.normalizedId = pid;
-        if (!seenInBatch.has(pid)) {
+        if (pid && !seenInBatch.has(pid)) {
           seenInBatch.add(pid);
           uniqueBatch.push(p);
         }
