@@ -8,8 +8,9 @@ export class FacebookScraper {
     
     let browser;
     try {
-      const useBrowser = task.scrapeMethod === 'browser';
-      if (!useBrowser) return this.scrapeLegacy(task);
+      // Facebook requires browser method due to complex JS rendering and bot protection
+      // Even if 'html' is selected, we use browser to ensure it works.
+      const useBrowser = true; 
 
       const userCookies = await storage.getCookies(task.userId);
       const fbCookies = userCookies.filter(c => c.platform === 'facebook');
