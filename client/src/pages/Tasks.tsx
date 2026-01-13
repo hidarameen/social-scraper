@@ -181,7 +181,7 @@ export default function Tasks() {
           </DialogHeader>
           {editingTask && (
             <TaskForm 
-              task={editingTask} 
+              task={editingTask as any} 
               onSuccess={() => setIsEditOpen(false)} 
             />
           )}
