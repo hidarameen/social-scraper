@@ -115,9 +115,28 @@ export class FacebookScraper {
 
       // Wait for content to load
       try {
-        await page.waitForSelector('[role="article"]', { timeout: 10000 });
+        await page.waitForSelector('[role="article"]', { timeout: 15000 });
+        
+        // Handle "See More" expansion
+        console.log("[Browser Scraper] Attempting to expand 'See More' buttons...");
+        const seeMoreButtons = await page.$$('div[role="button"]:has-text("See more"), div[role="button"]:has-text("عرض المزيد")');
+        console.log(`[Browser Scraper] Found ${seeMoreButtons.length} potential buttons.`);
+        
+        for (const button of seeMoreButtons) {
+          try {
+            await button.click({ timeout: 2000 });
+            await page.waitForTimeout(500); // Small wait for content to expand
+          } catch (e) {
+            // Ignore individual button failures
+          }
+        }
+        
+        // Optional: Scroll a bit to trigger more loading
+        await page.evaluate(() => window.scrollBy(0, 1000));
+        await page.waitForTimeout(2000);
+        
       } catch (e) {
-        console.log("[Browser Scraper] Timeout waiting for articles, might be a different layout or blocked.");
+        console.log("[Browser Scraper] Timeout or error during page preparation.");
       }
 
       // Extract posts
@@ -128,13 +147,25 @@ export class FacebookScraper {
         for (let i = 0; i < Math.min(articles.length, limit || 10); i++) {
           const el = articles[i];
           
-          // Basic selectors
-          const textEl = el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent');
-          let postText = textEl ? textEl.textContent?.trim() : '';
+          // Try to find expanded text
+          const textSelectors = [
+            '[data-ad-comet-preview="message"]',
+            '[data-ad-preview="message"]',
+            '.userContent',
+            'div[dir="auto"]'
+          ];
           
-          if (!postText) {
-            const genericText = el.querySelector('div[dir="auto"]');
-            postText = genericText ? genericText.textContent?.trim() : '';
+          let postText = '';
+          for (const selector of textSelectors) {
+            const textEl = el.querySelector(selector);
+            if (textEl) {
+              // Get clean text, ignoring the "See more" button text itself
+              const clone = textEl.cloneNode(true) as HTMLElement;
+              const buttons = clone.querySelectorAll('[role="button"], .see-more');
+              buttons.forEach(b => b.remove());
+              postText = clone.textContent?.trim() || '';
+              if (postText) break;
+            }
           }
 
           const linkEl = Array.from(el.querySelectorAll('a')).find(a => {
