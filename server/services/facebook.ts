@@ -119,7 +119,14 @@ export class FacebookScraper implements IScraper {
 
         // Fallback to link-based video discovery if direct src is not found or is a blob
         if (!postVideo || postVideo.startsWith('blob:')) {
-          const videoLink = $(el).find('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]').first().attr('href');
+          // Look for specific video/reel links within the post container only
+          const videoLink = $(el).find('a').filter((_, link) => {
+            const href = $(link).attr('href') || '';
+            // Must be a link to a video, reel, or watch, and NOT a general profile link
+            return (href.includes('/videos/') || href.includes('/watch/') || href.includes('/reel/')) && 
+                   !href.includes('/groups/') && !href.includes('/events/');
+          }).first().attr('href');
+
           if (videoLink) {
             postVideo = videoLink.startsWith('http') ? videoLink : `https://www.facebook.com${videoLink.startsWith('/') ? '' : '/'}${videoLink}`;
           }
