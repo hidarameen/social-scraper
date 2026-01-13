@@ -105,14 +105,15 @@ export class ScraperManager {
           
           // Replace placeholders safely
           const safeReplace = (tmpl: string, key: string, val: any) => {
-            return tmpl.split(`{${key}}`).join(val || '');
+            const cleanVal = (val || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return tmpl.split(`{${key}}`).join(key === 'url' ? (val || '') : cleanVal);
           };
 
           notifyMsg = safeReplace(notifyMsg, 'platform', post.platform || task.platform);
-          notifyMsg = safeReplace(notifyMsg, 'url', post.url);
           notifyMsg = safeReplace(notifyMsg, 'text', post.text);
           notifyMsg = safeReplace(notifyMsg, 'account', post.accountName || '');
           notifyMsg = safeReplace(notifyMsg, 'date', post.date || '');
+          notifyMsg = safeReplace(notifyMsg, 'url', post.url);
 
           const imageToSend = task.includeImages ? post.image : undefined;
           await this.telegram.sendMessage(task.userId, task.target, notifyMsg, imageToSend);

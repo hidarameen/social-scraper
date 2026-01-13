@@ -69,10 +69,14 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
 
   const addTag = (tag: string) => {
     const current = form.getValues("messageTemplate") || "";
-    form.setValue("messageTemplate", current + `{${tag}}`);
+    if (tag === "link") {
+      form.setValue("messageTemplate", current + `<a href="{url}">{text}</a>`);
+    } else {
+      form.setValue("messageTemplate", current + `{${tag}}`);
+    }
   };
 
-  const tags = ["platform", "url", "text", "account", "date"];
+  const tags = ["platform", "url", "text", "account", "date", "link"];
 
   return (
     <Form {...form}>
