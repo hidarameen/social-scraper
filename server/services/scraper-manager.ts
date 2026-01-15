@@ -97,7 +97,26 @@ export class ScraperManager {
 
       for (const p of allPosts) {
         // IMPROVED: Use platform-provided ID, fallback to stable hash
-        const pid = p.id || (p.url || '').toString().split(/[?&]/)[0].split('/').filter(Boolean).pop();
+        let pid = p.id;
+        
+        if (!pid && p.url) {
+          // Extract ID from URL for Facebook (handles reels and posts)
+          const urlObj = new URL(p.url, 'https://facebook.com');
+          const pathParts = urlObj.pathname.split('/').filter(Boolean);
+          // For reels: /reel/ID/
+          // For posts: /posts/ID/ or /groups/ID/posts/ID
+          pid = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+          
+          // If still no PID or it looks like a generic path, use the full URL without query params
+          if (!pid || ['reel', 'reels', 'posts', 'groups', 'share'].includes(pid)) {
+            pid = urlObj.origin + urlObj.pathname;
+          }
+        }
+        
+        // Final fallback to text hash if no ID or URL
+        if (!pid) {
+          pid = Buffer.from(p.text || '').toString('base64').substring(0, 32);
+        }
         
         p.normalizedId = pid;
         if (pid && !seenInBatch.has(pid)) {
