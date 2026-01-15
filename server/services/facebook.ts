@@ -135,77 +135,109 @@ export class FacebookScraper {
         const results: any[] = [];
         const seenTexts = new Set();
         
-          const containers = Array.from(document.querySelectorAll('div[role="article"]:not([aria-posinset]), div[data-testid="fbfeed_story"], div[class*="feed_unit"]'))
-            .filter(el => {
-              // 1. استبعاد العناصر المتداخلة (التعليقات)
-              const isNested = !!el.closest('form[class*="commentable_item"], div[role="complementary"]');
-              const isComment = el.getAttribute('role') === 'article' && !!el.closest('div[role="article"]');
-              if (isNested || isComment) return false;
+        // 1. تحديد حاويات المنشورات بشكل أكثر دقة
+        const containers = Array.from(document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"], div[class*="feed_unit"], .x1y1z1x1'))
+          .filter(el => {
+            // استبعاد التعليقات والمكونات الجانبية
+            const isNested = !!el.closest('form[class*="commentable_item"], div[role="complementary"]');
+            const isComment = el.getAttribute('role') === 'article' && (!!el.closest('div[role="article"]') || el.querySelector('div[role="article"]'));
+            if (isNested || (isComment && el.querySelectorAll('div[role="article"]').length === 0)) return false;
 
-              // 2. التحقق من وجود معرفات القصة (Story ID) واستبعاد معرفات التعليقات
-              const html = el.innerHTML;
-              const hasStoryId = html.includes('story_fbid') || html.includes('feedback_id') || html.includes('mf_story_key');
-              const isCommentById = html.includes('comment_id') || html.includes('parent_comment_id') || html.includes('reply_comment_id');
-              
-              // 3. التحقق من وجود علامات المنشور الأساسية
-              const hasPostMarkers = !!el.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, [data-testid="post_message"]');
+            // المنشورات عادة تحتوي على نصوص أو صور أو روابط
+            const hasContent = el.innerText.length > 20 || el.querySelector('img') || el.querySelector('a');
+            return hasContent;
+          });
 
-              return hasStoryId && !isCommentById && hasPostMarkers;
-            });
+        for (const container of containers) {
+          if (results.length >= (limit || 10)) break;
 
-          for (const container of containers) {
-            if (results.length >= (limit || 10)) break;
+          // 2. تحسين استخراج النصوص باستخدام مصفوفة واسعة من الـ selectors
+          const textSelectors = [
+            '[data-ad-comet-preview="message"]',
+            '[data-ad-preview="message"]',
+            '.userContent',
+            'div[dir="auto"]',
+            '[data-testid="post_message"]',
+            '.x1iorvi4',
+            '.x193iq5w',
+            '.x1lliihq'
+          ];
 
-            const textSelectors = [
-              '[data-ad-comet-preview="message"]',
-              '[data-ad-preview="message"]',
-              '.userContent',
-              'div[dir="auto"]',
-              '[data-testid="post_message"]',
-              '.x1iorvi4'
-            ];
-
-            let postText = '';
-            for (const sel of textSelectors) {
-              const el = container.querySelector(sel);
-              if (el) {
-                postText = el.textContent?.trim() || '';
-                if (postText.length > 10) break;
+          let postText = '';
+          for (const sel of textSelectors) {
+            const elements = container.querySelectorAll(sel);
+            for (const el of Array.from(elements)) {
+              const text = el.textContent?.trim() || '';
+              if (text.length > postText.length) {
+                postText = text;
               }
             }
-
-            if (!postText || postText.length < 10 || seenTexts.has(postText)) continue;
-            seenTexts.add(postText);
-
-            // استخراج الصور
-            const imgEl = container.querySelector('img[src*="fbcdn.net/v/"]');
-            const imageUrl = imgEl ? (imgEl as HTMLImageElement).src : undefined;
-
-            // استخراج الفيديوهات (الروابط)
-            const videoLink = container.querySelector('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]');
-            const videoUrl = videoLink ? (videoLink as HTMLAnchorElement).href : undefined;
-
-            const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/story.php"], a[href*="/share/"]');
-            const postUrl = link ? (link as HTMLAnchorElement).href : task_url;
-            
-            let postId = '';
-            try {
-              const urlObj = new URL(postUrl);
-              postId = urlObj.pathname + urlObj.search;
-            } catch(e) {
-              postId = postText.substring(0, 30).replace(/\s+/g, '_');
-            }
-
-            results.push({
-              text: postText,
-              url: postUrl,
-              id: postId,
-              image: imageUrl,
-              video: videoUrl,
-              platform: 'Facebook',
-              date: new Date().toLocaleString('ar-EG')
-            });
+            if (postText.length > 50) break;
           }
+
+          // إذا لم نجد نصاً، نحاول البحث عن أي div يحتوي على نص طويل داخل الحاوية
+          if (!postText || postText.length < 10) {
+            const allDivs = Array.from(container.querySelectorAll('div[dir="auto"]'));
+            for (const d of allDivs) {
+              const t = d.textContent?.trim() || '';
+              if (t.length > postText.length) postText = t;
+            }
+          }
+
+          if (!postText || postText.length < 5 || seenTexts.has(postText)) continue;
+          seenTexts.add(postText);
+
+          // 3. استخراج الصور والفيديوهات والروابط
+          const imgEl = container.querySelector('img[src*="fbcdn.net/v/"], img[src*="external"]');
+          const imageUrl = imgEl ? (imgEl as HTMLImageElement).src : undefined;
+
+          const videoLink = container.querySelector('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]');
+          const videoUrl = videoLink ? (videoLink as HTMLAnchorElement).href : undefined;
+
+          // محاولة العثور على رابط المنشور الحقيقي
+          const linkSelectors = [
+            'a[href*="/posts/"]',
+            'a[href*="/permalink.php"]',
+            'a[href*="/reel/"]',
+            'a[href*="/story.php"]',
+            'a[href*="/groups/"]',
+            'span > a[role="link"]'
+          ];
+          
+          let postUrl = task_url;
+          for (const sel of linkSelectors) {
+            const l = container.querySelector(sel);
+            if (l && (l as HTMLAnchorElement).href) {
+              postUrl = (l as HTMLAnchorElement).href;
+              break;
+            }
+          }
+          
+          let postId = '';
+          try {
+            const urlObj = new URL(postUrl);
+            postId = urlObj.pathname + urlObj.search;
+            if (postId.length < 5) throw new Error();
+          } catch(e) {
+            // توليد معرف ثابت بناءً على النص إذا فشل الرابط
+            let hash = 0;
+            for (let i = 0; i < postText.length; i++) {
+              hash = ((hash << 5) - hash) + postText.charCodeAt(i);
+              hash |= 0;
+            }
+            postId = `gen_${Math.abs(hash)}`;
+          }
+
+          results.push({
+            text: postText,
+            url: postUrl,
+            id: postId,
+            image: imageUrl,
+            video: videoUrl,
+            platform: 'Facebook',
+            date: new Date().toLocaleString('ar-EG')
+          });
+        }
         return results;
       }, { limit: task.postLimit, task_url: task.url });
 
