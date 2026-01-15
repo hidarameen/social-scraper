@@ -50,11 +50,17 @@ export class AIService {
     try {
       const client = provider === "openai" ? openai : openrouter;
       
-      const prompt = customPrompt || `Analyze the following content from a social media page. 
+      let prompt = customPrompt || `Analyze the following content from a social media page. 
       Determine if it is an actual post (not a comment, ad, or sidebar element).
       You must return the response in JSON format.
-      Expected JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }
-      Content: ${text}`;
+      Expected JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }`;
+
+      // Always ensure the word "json" is in the prompt to satisfy OpenAI's requirements
+      if (!prompt.toLowerCase().includes("json")) {
+        prompt += "\n\nResponse must be in JSON format.";
+      }
+
+      prompt += `\n\nContent: ${text}`;
 
       const response = await client.chat.completions.create({
         model: model,
