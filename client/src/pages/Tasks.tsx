@@ -26,7 +26,8 @@ import {
   Edit, 
   MoreHorizontal, 
   TestTube,
-  ExternalLink 
+  ExternalLink,
+  PlayCircle
 } from "lucide-react";
 import {
   DropdownMenu,
