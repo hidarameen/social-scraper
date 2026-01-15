@@ -141,17 +141,27 @@ export class FacebookScraper {
         const results: any[] = [];
         const seenTexts = new Set();
         
-        // 1. تحديد حاويات المنشورات بشكل أكثر دقة
-        const containers = Array.from(document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"], div[class*="feed_unit"], .x1y1z1x1'))
+        // 1. تحديد حاويات المنشورات بشكل أكثر دقة - التركيز على المنشورات فقط
+        const containers = Array.from(document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"]'))
           .filter(el => {
-            // استبعاد التعليقات والمكونات الجانبية
-            const isNested = !!el.closest('form[class*="commentable_item"], div[role="complementary"]');
-            const isComment = el.getAttribute('role') === 'article' && (!!el.closest('div[role="article"]') || el.querySelector('div[role="article"]'));
-            if (isNested || (isComment && el.querySelectorAll('div[role="article"]').length === 0)) return false;
+            // استبعاد أي حاوية داخل حاوية أخرى (لتجنب التعليقات أو المنشورات المضمنة)
+            const isNested = !!el.parentElement?.closest('div[role="article"]');
+            
+            // التأكد من أنها ليست قائمة جانبية أو اقتراحات
+            const isSidebar = !!el.closest('div[role="complementary"], div[aria-label*="Suggested"], div[aria-label*="مقتراحات"]');
+            
+            if (isNested || isSidebar) return false;
 
-            // المنشورات عادة تحتوي على نصوص أو صور أو روابط
-            const hasContent = el.innerText.length > 20 || el.querySelector('img') || el.querySelector('a');
-            return hasContent;
+            // المنشورات الحقيقية عادة ما تكون في الخلاصة الرئيسية
+            // إضافة فلاتر إضافية للتأكد من أنها في قسم المنشورات
+            const isInMainFeed = !!el.closest('div[role="main"], [data-pagelet="ProfileTimeline"], [data-pagelet="GroupFeed"]');
+            
+            // التأكد من أن العنصر يحتوي على بصمة منشور (مثل وقت النشر أو زر المشاركة)
+            // تم إضافة فلاتر إضافية لاستبعاد المنشورات المقترحة والتركيز على منشورات الصفحة فقط
+            const isSuggested = !!el.innerText.includes('Suggested for you') || !!el.innerText.includes('مقترح لك');
+            const hasPostMetadata = !!el.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"]');
+            
+            return isInMainFeed && hasPostMetadata && !isSuggested && el.innerText.length > 20;
           });
 
         for (const container of containers) {
