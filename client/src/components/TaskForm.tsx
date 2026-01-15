@@ -28,7 +28,16 @@ import { Image, Video, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface TaskFormProps {
-  task?: InsertTask & { id?: number, messageTemplate?: string | null, includeImages?: boolean, includeVideos?: boolean };
+  task?: InsertTask & { 
+    id?: number, 
+    messageTemplate?: string | null, 
+    includeImages?: boolean, 
+    includeVideos?: boolean,
+    aiEnabled?: boolean,
+    aiProvider?: string,
+    aiModel?: string,
+    aiPrompt?: string | null
+  };
   onSuccess?: () => void;
 }
 
@@ -52,6 +61,10 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
       messageTemplate: (task as any)?.messageTemplate || "<b>[ScrapeMaster]</b>\nAccount: {account}\nPlatform: {platform}\nDate: {date}\n\n{text}\n\n<a href=\"{url}\">View Post</a>",
       includeImages: task?.includeImages ?? true,
       includeVideos: task?.includeVideos ?? true,
+      aiEnabled: task?.aiEnabled ?? false,
+      aiProvider: (task?.aiProvider as any) || "openai",
+      aiModel: task?.aiModel || "gpt-4o-mini",
+      aiPrompt: task?.aiPrompt || "",
     },
   });
 
@@ -174,6 +187,85 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="space-y-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+          <FormField
+            control={form.control}
+            name="aiEnabled"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel>الذكاء الاصطناعي (AI)</FormLabel>
+                  <FormDescription>تحسين المنشورات واستخراج المعلومات تلقائياً</FormDescription>
+                </div>
+                <FormControl>
+                  <Checkbox
+                    checked={!!field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {form.watch("aiEnabled") && (
+            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+              <FormField
+                control={form.control}
+                name="aiProvider"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المزود (Provider)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value || "openai"}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select provider" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="groq">Groq (via OpenRouter)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="aiModel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المودل (Model)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. gpt-4o-mini" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <div className="col-span-2">
+                <FormField
+                  control={form.control}
+                  name="aiPrompt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>توجيه مخصص (Custom Prompt)</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="مثال: لخص المنشور في جملة واحدة واستخرج الهاشتاجات..." 
+                          {...field} 
+                          value={field.value || ""} 
+                        />
+                      </FormControl>
+                      <FormDescription>اتركه فارغاً لاستخدام التوجيه الافتراضي.</FormDescription>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-accent/50 border border-border">
