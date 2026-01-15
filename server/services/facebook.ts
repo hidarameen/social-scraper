@@ -135,10 +135,22 @@ export class FacebookScraper {
         const results: any[] = [];
         const seenTexts = new Set();
         
-        const containers = Array.from(document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"], div[class*="feed_unit"], div[class*="x1yzt60"]'));
+          const containers = Array.from(document.querySelectorAll('div[role="article"]:not([aria-posinset]), div[data-testid="fbfeed_story"], div[class*="feed_unit"]'))
+            .filter(el => {
+              // Ensure it's a top-level post, not nested comment or sidebar
+              const isNested = !!el.closest('form[class*="commentable_item"], div[role="complementary"]');
+              const isComment = el.getAttribute('role') === 'article' && !!el.closest('div[role="article"]');
+              return !isNested && !isComment;
+            });
 
-        for (const container of containers) {
-          if (results.length >= (limit || 10)) break;
+          for (const container of containers) {
+            if (results.length >= (limit || 10)) break;
+
+            // Check if this container is likely a post by looking for post-specific markers
+            const hasPostMarkers = !!container.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"], .userContent, [data-testid="post_message"]');
+            const isCommentContainer = !!container.closest('ul, .commentable_item');
+            
+            if (!hasPostMarkers || isCommentContainer) continue;
 
           const textSelectors = [
             '[data-ad-comet-preview="message"]',
