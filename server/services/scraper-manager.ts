@@ -191,9 +191,9 @@ export class ScraperManager {
 
       // Update last run and last post ID (ALWAYS update to the most recent extracted ID)
       const updates: any = { lastRun: new Date() };
-      if (uniqueBatch.length > 0) {
-        // Use the ID of the first post in the unique batch (newest)
-        const latestId = uniqueBatch[0].normalizedId;
+      if (allPosts.length > 0) {
+        // Find the absolute latest ID found in the scrape (the first one extracted)
+        const latestId = allPosts[0].id || allPosts[0].normalizedId;
         updates.lastPostId = latestId;
         console.log(`[ScraperManager] Updating lastPostId for task ${task.id} to: ${latestId}`);
       }
