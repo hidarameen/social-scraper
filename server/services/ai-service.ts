@@ -14,9 +14,32 @@ export interface AIAnalysisResult {
   improvedText: string;
   relevanceScore: number;
   tags: string[];
+  isPost?: boolean;
 }
 
 export class AIService {
+  async extractSelectors(html: string, platform: string): Promise<string[] | null> {
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ 
+          role: "user", 
+          content: `Given the HTML of a ${platform} page, identify CSS selectors for post containers and post text. 
+          Return JSON format: { "containerSelectors": [".class1", "div[role='article']"], "textSelectors": [".textClass"] }
+          HTML snippet: ${html.substring(0, 10000)}` 
+        }],
+        response_format: { type: "json_object" }
+      });
+      const content = response.choices[0].message.content;
+      if (!content) return null;
+      const data = JSON.parse(content);
+      return [...(data.containerSelectors || []), ...(data.textSelectors || [])];
+    } catch (error) {
+      console.error("[AIService] Error extracting selectors:", error);
+      return null;
+    }
+  }
+
   async analyzePost(
     text: string, 
     provider: "openai" | "groq", 
@@ -25,12 +48,11 @@ export class AIService {
   ): Promise<AIAnalysisResult | null> {
     try {
       const client = provider === "openai" ? openai : openrouter;
-      // Note: For Groq via OpenRouter, the provider might need to be mapped or model name verified.
-      // The user asked for Groq, so we'll use OpenRouter which supports it.
       
-      const prompt = customPrompt || `Analyze the following social media post and extract key information. 
-      Return JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1", "tag2"] }
-      Post text: ${text}`;
+      const prompt = customPrompt || `Analyze the following content from a social media page. 
+      Determine if it is an actual post (not a comment, ad, or sidebar element).
+      Return JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }
+      Content: ${text}`;
 
       const response = await client.chat.completions.create({
         model: model,

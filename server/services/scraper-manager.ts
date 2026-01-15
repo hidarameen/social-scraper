@@ -196,7 +196,21 @@ export class ScraperManager {
                   task.aiModel || "gpt-4o-mini",
                   task.aiPrompt || undefined
                 );
+                
                 if (aiResult) {
+                  // Only process if it's confirmed as a post
+                  if (aiResult.isPost === false) {
+                    console.log(`[ScraperManager] AI filtered out non-post: ${post.normalizedId}`);
+                    try {
+                      await this.storage.createLog({
+                        taskId: task.id,
+                        status: "skipped",
+                        message: `AI filtered out non-post content`,
+                      });
+                    } catch (e) {}
+                    continue; // Skip this item
+                  }
+
                   post.text = aiResult.improvedText;
                   notifyMsg = safeReplace(notifyMsg, 'text', aiResult.improvedText);
                   if (aiResult.tags && aiResult.tags.length > 0) {

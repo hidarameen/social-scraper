@@ -4,6 +4,8 @@ import * as cheerio from 'cheerio';
 import { Task } from "@shared/schema";
 import { storage } from "../storage";
 
+import { aiService } from './ai-service';
+
 export class FacebookScraper {
   private storage: any;
 
@@ -81,9 +83,19 @@ export class FacebookScraper {
 
       page = await context.newPage();
       
+      // Navigate and wait
       try {
         await page.goto(task.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.waitForTimeout(5000);
+
+        // Dynamic AI Selector Extraction
+        if (task.aiEnabled) {
+          const html = await page.content();
+          const dynamicSelectors = await aiService.extractSelectors(html, 'Facebook');
+          if (dynamicSelectors) {
+            console.log(`[Facebook Scraper] AI suggested selectors: ${dynamicSelectors.join(', ')}`);
+          }
+        }
       } catch (gotoErr: any) {
         console.error(`[Facebook Scraper] Navigation error: ${gotoErr.message}`);
         return { items: 0, message: `Navigation failed: ${gotoErr.message}` };
