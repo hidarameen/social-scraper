@@ -142,7 +142,20 @@ export default function Tasks() {
                         disabled={testTask.isPending}
                         title="Test Run"
                       >
-                        <Play className="h-4 w-4" />
+                        <PlayCircle className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={`h-8 w-8 hover:bg-primary/10 ${task.status === 'active' ? 'text-primary' : 'text-muted-foreground'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleStatus(task);
+                        }}
+                        title={task.status === 'active' ? "Pause Task" : "Resume Task"}
+                      >
+                        {task.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                       </Button>
                       
                       <DropdownMenu>
