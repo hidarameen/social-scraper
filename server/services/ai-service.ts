@@ -25,7 +25,8 @@ export class AIService {
         messages: [{ 
           role: "user", 
           content: `Given the HTML of a ${platform} page, identify CSS selectors for post containers and post text. 
-          Return JSON format: { "containerSelectors": [".class1", "div[role='article']"], "textSelectors": [".textClass"] }
+          Return the result strictly in JSON format.
+          Format: { "containerSelectors": [".class1", "div[role='article']"], "textSelectors": [".textClass"] }
           HTML snippet: ${html.substring(0, 10000)}` 
         }],
         response_format: { type: "json_object" }
@@ -51,7 +52,8 @@ export class AIService {
       
       const prompt = customPrompt || `Analyze the following content from a social media page. 
       Determine if it is an actual post (not a comment, ad, or sidebar element).
-      Return JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }
+      You must return the response in JSON format.
+      Expected JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }
       Content: ${text}`;
 
       const response = await client.chat.completions.create({
