@@ -85,7 +85,13 @@ export class FacebookScraper {
       
       // Navigate and wait
       try {
-        await page.goto(task.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        let targetUrl = task.url;
+        if (!targetUrl.includes('/posts') && !targetUrl.includes('permalink')) {
+          targetUrl = targetUrl.endsWith('/') ? `${targetUrl}posts` : `${targetUrl}/posts`;
+        }
+        
+        console.log(`[Facebook Scraper] Navigating to: ${targetUrl}`);
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.waitForTimeout(5000);
 
         // Dynamic AI Selector Extraction

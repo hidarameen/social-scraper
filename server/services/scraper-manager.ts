@@ -212,7 +212,7 @@ export class ScraperManager {
       const updates: any = { lastRun: new Date() };
       if (allPosts.length > 0) {
         // Find the absolute latest ID found in the scrape (the first one extracted)
-        const latestId = allPosts[0].id || allPosts[0].normalizedId;
+        const latestId = allPosts[0].normalizedId || allPosts[0].id;
         updates.lastPostId = latestId;
         console.log(`[ScraperManager] Updating lastPostId for task ${task.id} to: ${latestId}`);
       }
