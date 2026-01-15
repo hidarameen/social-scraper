@@ -156,46 +156,56 @@ export class FacebookScraper {
           for (const container of containers) {
             if (results.length >= (limit || 10)) break;
 
-          const textSelectors = [
-            '[data-ad-comet-preview="message"]',
-            '[data-ad-preview="message"]',
-            '.userContent',
-            'div[dir="auto"]',
-            '[data-testid="post_message"]',
-            '.x1iorvi4'
-          ];
+            const textSelectors = [
+              '[data-ad-comet-preview="message"]',
+              '[data-ad-preview="message"]',
+              '.userContent',
+              'div[dir="auto"]',
+              '[data-testid="post_message"]',
+              '.x1iorvi4'
+            ];
 
-          let postText = '';
-          for (const sel of textSelectors) {
-            const el = container.querySelector(sel);
-            if (el) {
-              postText = el.textContent?.trim() || '';
-              if (postText.length > 10) break;
+            let postText = '';
+            for (const sel of textSelectors) {
+              const el = container.querySelector(sel);
+              if (el) {
+                postText = el.textContent?.trim() || '';
+                if (postText.length > 10) break;
+              }
             }
+
+            if (!postText || postText.length < 10 || seenTexts.has(postText)) continue;
+            seenTexts.add(postText);
+
+            // استخراج الصور
+            const imgEl = container.querySelector('img[src*="fbcdn.net/v/"]');
+            const imageUrl = imgEl ? (imgEl as HTMLImageElement).src : undefined;
+
+            // استخراج الفيديوهات (الروابط)
+            const videoLink = container.querySelector('a[href*="/videos/"], a[href*="/watch/"], a[href*="/reel/"]');
+            const videoUrl = videoLink ? (videoLink as HTMLAnchorElement).href : undefined;
+
+            const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/story.php"], a[href*="/share/"]');
+            const postUrl = link ? (link as HTMLAnchorElement).href : task_url;
+            
+            let postId = '';
+            try {
+              const urlObj = new URL(postUrl);
+              postId = urlObj.pathname + urlObj.search;
+            } catch(e) {
+              postId = postText.substring(0, 30).replace(/\s+/g, '_');
+            }
+
+            results.push({
+              text: postText,
+              url: postUrl,
+              id: postId,
+              image: imageUrl,
+              video: videoUrl,
+              platform: 'Facebook',
+              date: new Date().toLocaleString('ar-EG')
+            });
           }
-
-          if (!postText || postText.length < 10 || seenTexts.has(postText)) continue;
-          seenTexts.add(postText);
-
-          const link = container.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/story.php"], a[href*="/share/"]');
-          const postUrl = link ? (link as HTMLAnchorElement).href : task_url;
-          
-          let postId = '';
-          try {
-            const urlObj = new URL(postUrl);
-            postId = urlObj.pathname + urlObj.search;
-          } catch(e) {
-            postId = postText.substring(0, 30).replace(/\s+/g, '_');
-          }
-
-          results.push({
-            text: postText,
-            url: postUrl,
-            id: postId,
-            platform: 'Facebook',
-            date: new Date().toLocaleString('ar-EG')
-          });
-        }
         return results;
       }, { limit: task.postLimit, task_url: task.url });
 
