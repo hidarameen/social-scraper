@@ -1,6 +1,7 @@
 import { IStorage } from "../storage";
 import { Task } from "@shared/schema";
 import { TelegramService } from "./telegram";
+import { aiService } from "./ai-service";
 
 export interface IScraper {
   scrape(task: Task): Promise<{ items: number, message: string, data?: any }>;
@@ -185,6 +186,27 @@ export class ScraperManager {
             notifyMsg = safeReplace(notifyMsg, 'account', post.accountName || '');
             notifyMsg = safeReplace(notifyMsg, 'date', post.date || '');
             notifyMsg = safeReplace(notifyMsg, 'url', post.url);
+
+            // AI Enhancement if enabled
+            if (task.aiEnabled) {
+              try {
+                const aiResult = await aiService.analyzePost(
+                  post.text, 
+                  task.aiProvider as any, 
+                  task.aiModel || "gpt-4o-mini",
+                  task.aiPrompt || undefined
+                );
+                if (aiResult) {
+                  post.text = aiResult.improvedText;
+                  notifyMsg = safeReplace(notifyMsg, 'text', aiResult.improvedText);
+                  if (aiResult.tags && aiResult.tags.length > 0) {
+                    notifyMsg += `\n\nTags: ${aiResult.tags.join(', ')}`;
+                  }
+                }
+              } catch (aiErr) {
+                console.error("[ScraperManager] AI analysis failed:", aiErr);
+              }
+            }
 
             const imageToSend = task.includeImages ? post.image : undefined;
             const videoToSend = task.includeVideos ? post.video : undefined;
