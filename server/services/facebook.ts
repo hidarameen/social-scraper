@@ -103,16 +103,25 @@ export class FacebookScraper {
 
       if (page.isClosed()) return { items: 0, message: "Page closed unexpectedly" };
 
+      // Scrolling logic
       let scrolls = 0;
-      const maxScrolls = 3;
+      const maxScrolls = 10; // زيادة عدد مرات التمرير لضمان الوصول للعدد المطلوب
+      let postsCount = 0;
 
       while (scrolls < maxScrolls) {
         if (page.isClosed()) break;
         
+        postsCount = await page.evaluate(() => document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"]').length);
+        
+        if (postsCount >= (task.postLimit || 10)) {
+          console.log(`[Facebook Scraper] Found ${postsCount} posts, stopping scroll.`);
+          break;
+        }
+
         await this.storage.createLog({
           taskId: task.id,
           status: "running",
-          message: `[Scroll ${scrolls + 1}] Scanning page...`,
+          message: `[Scroll ${scrolls + 1}] Scanning page... (Found ${postsCount}/${task.postLimit})`,
         }).catch(() => {});
 
         await page.evaluate(() => window.scrollBy(0, 2000));
