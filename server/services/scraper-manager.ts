@@ -123,6 +123,41 @@ export class ScraperManager {
       for (const post of uniqueBatch) {
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
+          // AI Enhancement if enabled
+          if (task.aiEnabled) {
+            try {
+              const aiResult = await aiService.analyzePost(
+                post.text, 
+                task.aiProvider as any, 
+                task.aiModel || "gpt-4o-mini",
+                task.aiPrompt || undefined
+              );
+              
+              if (aiResult) {
+                // Only process if it's confirmed as a post
+                if (aiResult.isPost === false) {
+                  console.log(`[ScraperManager] AI filtered out non-post: ${post.normalizedId}`);
+                  try {
+                    await this.storage.createLog({
+                      taskId: task.id,
+                      status: "skipped",
+                      message: `AI filtered out non-post content: ${post.normalizedId}`,
+                    });
+                  } catch (e) {}
+                  continue; // Skip this item
+                }
+
+                post.text = aiResult.improvedText;
+                // Add tags if present
+                if (aiResult.tags && aiResult.tags.length > 0) {
+                  post.aiTags = aiResult.tags;
+                }
+              }
+            } catch (aiErr) {
+              console.error("[ScraperManager] AI analysis failed:", aiErr);
+            }
+          }
+
           newPosts.push(post);
           try {
             await this.storage.createLog({
@@ -154,10 +189,13 @@ export class ScraperManager {
         itemsFound: newPosts.length,
       });
 
-      // Update last run and last post ID
+      // Update last run and last post ID (ALWAYS update to the most recent extracted ID)
       const updates: any = { lastRun: new Date() };
       if (uniqueBatch.length > 0) {
-        updates.lastPostId = uniqueBatch[0].normalizedId;
+        // Use the ID of the first post in the unique batch (newest)
+        const latestId = uniqueBatch[0].normalizedId;
+        updates.lastPostId = latestId;
+        console.log(`[ScraperManager] Updating lastPostId for task ${task.id} to: ${latestId}`);
       }
       await this.storage.updateTask(task.id, updates);
 
@@ -187,39 +225,8 @@ export class ScraperManager {
             notifyMsg = safeReplace(notifyMsg, 'date', post.date || '');
             notifyMsg = safeReplace(notifyMsg, 'url', post.url);
 
-            // AI Enhancement if enabled
-            if (task.aiEnabled) {
-              try {
-                const aiResult = await aiService.analyzePost(
-                  post.text, 
-                  task.aiProvider as any, 
-                  task.aiModel || "gpt-4o-mini",
-                  task.aiPrompt || undefined
-                );
-                
-                if (aiResult) {
-                  // Only process if it's confirmed as a post
-                  if (aiResult.isPost === false) {
-                    console.log(`[ScraperManager] AI filtered out non-post: ${post.normalizedId}`);
-                    try {
-                      await this.storage.createLog({
-                        taskId: task.id,
-                        status: "skipped",
-                        message: `AI filtered out non-post content`,
-                      });
-                    } catch (e) {}
-                    continue; // Skip this item
-                  }
-
-                  post.text = aiResult.improvedText;
-                  notifyMsg = safeReplace(notifyMsg, 'text', aiResult.improvedText);
-                  if (aiResult.tags && aiResult.tags.length > 0) {
-                    notifyMsg += `\n\nTags: ${aiResult.tags.join(', ')}`;
-                  }
-                }
-              } catch (aiErr) {
-                console.error("[ScraperManager] AI analysis failed:", aiErr);
-              }
+            if (post.aiTags && post.aiTags.length > 0) {
+              notifyMsg += `\n\nTags: ${post.aiTags.join(', ')}`;
             }
 
             const imageToSend = task.includeImages ? post.image : undefined;
