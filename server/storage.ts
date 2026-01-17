@@ -38,6 +38,7 @@ export interface IStorage {
   // Settings
   getSettings(userId: number): Promise<Setting[]>;
   upsertSetting(setting: InsertSetting): Promise<Setting>;
+  deleteSetting(userId: number, key: string): Promise<void>;
   // Sent Posts
   isPostSent(taskId: number, postId: string): Promise<boolean>;
   markPostAsSent(taskId: number, postId: string): Promise<void>;
@@ -142,6 +143,11 @@ export class DatabaseStorage implements IStorage {
 
     const [inserted] = await db.insert(settings).values(setting).returning();
     return inserted;
+  }
+  async deleteSetting(userId: number, key: string): Promise<void> {
+    await db
+      .delete(settings)
+      .where(and(eq(settings.userId, userId), eq(settings.key, key)));
   }
   // Sent Posts
   async isPostSent(taskId: number, postId: string): Promise<boolean> {

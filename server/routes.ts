@@ -69,6 +69,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/telegram/logout", isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteSetting(req.user.id, 'tg_session');
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/settings", isAuthenticated, async (req: any, res) => {
     const settingsList = await storage.getSettings(req.user.id);
     const settingsMap = settingsList.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});

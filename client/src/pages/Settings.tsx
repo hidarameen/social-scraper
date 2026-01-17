@@ -84,46 +84,20 @@ export default function Settings() {
     }
   };
 
-  const handleCompleteLogin = async () => {
-    const { phoneNumber, code, password } = form.getValues();
-    console.log("[Settings] handleCompleteLogin", { phoneNumber, code, hasPassword: !!password });
+  const handleLogout = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest("POST", "/api/telegram/login/complete", {
-        phoneNumber,
-        code,
-        phoneCodeHash,
-        password: password || undefined
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to complete login");
-      }
-
-      const result = await res.json();
-      console.log("[Settings] Login result:", result);
-
-      if (result.needs2FA) {
-        setStep("2fa");
-        toast({ title: "2FA Required", description: "Please enter your cloud password" });
-      } else {
-        setStep("idle");
-        toast({ title: "Login successful", description: "Telegram Userbot session saved" });
-      }
+      await apiRequest("DELETE", "/api/telegram/logout");
+      toast({ title: "Logged out", description: "Telegram Userbot session cleared" });
+      setStep("idle");
     } catch (e: any) {
-      console.error("[Settings] Login error:", e);
-      // Check if the error response itself indicates 2FA is needed
-      if (e.message?.includes('SESSION_PASSWORD_NEEDED') || e.message?.includes('password is empty')) {
-        setStep("2fa");
-        toast({ title: "2FA Required", description: "Please enter your cloud password" });
-      } else {
-        toast({ title: "Error completing login", description: e.message, variant: "destructive" });
-      }
+      toast({ title: "Error logging out", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
+
+  const isConnected = settings?.some(s => s.key === "tg_session" && s.value);
 
   return (
     <Layout>
@@ -136,29 +110,33 @@ export default function Settings() {
         <div className="space-y-6">
           <Card className="glass-panel">
             <CardHeader>
-              <CardTitle>Telegram Bot Integration</CardTitle>
+              <CardTitle>Forwarding Mode</CardTitle>
               <CardDescription>
-                Traditional Bot API configuration.
+                Choose how messages are forwarded to Telegram.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Bot Token</label>
-                <Input 
-                  type="password"
-                  placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" 
-                  {...form.register("telegram_bot_token")}
-                />
-              </div>
               <div className="flex items-center gap-2 pt-2">
                 <input 
                   type="checkbox" 
                   id="tg_use_userbot"
-                  {...form.register("tg_use_userbot")}
+                  checked={form.watch("tg_use_userbot") === "true"}
+                  onChange={(e) => form.setValue("tg_use_userbot", e.target.checked ? "true" : "false")}
                   className="rounded border-gray-300"
                 />
-                <label htmlFor="tg_use_userbot" className="text-sm">Use Userbot instead of Bot Token</label>
+                <label htmlFor="tg_use_userbot" className="text-sm font-medium">Use Userbot instead of Bot Token</label>
               </div>
+              
+              {form.watch("tg_use_userbot") === "false" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Bot Token</label>
+                  <Input 
+                    type="password"
+                    placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" 
+                    {...form.register("telegram_bot_token")}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -183,66 +161,87 @@ export default function Settings() {
           <Card className="glass-panel border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Phone className="h-5 w-5" /> Telegram Userbot (Telethon)
+                <Phone className="h-5 w-5" /> Telegram Userbot (gramJS)
               </CardTitle>
               <CardDescription>
-                Login with your phone number to use userbot features.
+                {isConnected 
+                  ? "Connected as Userbot. Messages will be forwarded using your account." 
+                  : "Login with your phone number to use userbot features."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {step === "idle" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Phone Number</label>
-                    <Input placeholder="+9665..." {...form.register("phoneNumber")} />
-                  </div>
-                  <Button 
-                    className="w-full gap-2" 
-                    onClick={handleStartLogin}
-                    disabled={loading}
-                  >
-                    <LogIn size={16} /> Start Login
-                  </Button>
-                </div>
-              )}
-
-              {step === "code" && (
-                <div className="space-y-4 bg-primary/5 p-4 rounded-lg border border-primary/10">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Verification Code</label>
-                    <Input placeholder="Enter code" {...form.register("code")} />
-                  </div>
-                  <Button 
-                    className="w-full gap-2" 
-                    onClick={handleCompleteLogin}
-                    disabled={loading}
-                  >
-                    Verify Code
-                  </Button>
-                  <Button variant="ghost" className="w-full text-xs" onClick={() => setStep("idle")}>
-                    Back
-                  </Button>
-                </div>
-              )}
-
-              {step === "2fa" && (
-                <div className="space-y-4 bg-amber-500/5 p-4 rounded-lg border border-amber-500/10">
-                  <div className="flex items-center gap-2 text-amber-600 mb-2">
+              {isConnected ? (
+                <div className="space-y-4 bg-green-500/5 p-4 rounded-lg border border-green-500/10">
+                  <div className="flex items-center gap-2 text-green-600 mb-2">
                     <ShieldCheck size={18} />
-                    <span className="text-sm font-semibold">2-Step Verification</span>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Cloud Password</label>
-                    <Input type="password" placeholder="Your password" {...form.register("password")} />
+                    <span className="text-sm font-semibold">Userbot Connected</span>
                   </div>
                   <Button 
+                    variant="destructive" 
                     className="w-full gap-2" 
-                    onClick={handleCompleteLogin}
+                    onClick={handleLogout}
                     disabled={loading}
                   >
-                    Confirm Password
+                    Logout Userbot
                   </Button>
                 </div>
+              ) : (
+                <>
+                  {step === "idle" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Phone Number</label>
+                        <Input placeholder="+9665..." {...form.register("phoneNumber")} />
+                      </div>
+                      <Button 
+                        className="w-full gap-2" 
+                        onClick={handleStartLogin}
+                        disabled={loading}
+                      >
+                        <LogIn size={16} /> Start Login
+                      </Button>
+                    </div>
+                  )}
+
+                  {step === "code" && (
+                    <div className="space-y-4 bg-primary/5 p-4 rounded-lg border border-primary/10">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Verification Code</label>
+                        <Input placeholder="Enter code" {...form.register("code")} />
+                      </div>
+                      <Button 
+                        className="w-full gap-2" 
+                        onClick={handleCompleteLogin}
+                        disabled={loading}
+                      >
+                        Verify Code
+                      </Button>
+                      <Button variant="ghost" className="w-full text-xs" onClick={() => setStep("idle")}>
+                        Back
+                      </Button>
+                    </div>
+                  )}
+
+                  {step === "2fa" && (
+                    <div className="space-y-4 bg-amber-500/5 p-4 rounded-lg border border-amber-500/10">
+                      <div className="flex items-center gap-2 text-amber-600 mb-2">
+                        <ShieldCheck size={18} />
+                        <span className="text-sm font-semibold">2-Step Verification</span>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Cloud Password</label>
+                        <Input type="password" placeholder="Your password" {...form.register("password")} />
+                      </div>
+                      <Button 
+                        className="w-full gap-2" 
+                        onClick={handleCompleteLogin}
+                        disabled={loading}
+                      >
+                        Confirm Password
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
