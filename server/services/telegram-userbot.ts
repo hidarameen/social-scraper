@@ -1,5 +1,6 @@
-import { TelegramClient } from 'telegram';
+import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
+import { computeCheck } from 'telegram/Password';
 import { IStorage } from '../storage';
 
 export class TelegramUserbotService {
@@ -49,7 +50,6 @@ export class TelegramUserbotService {
     console.log(`[TelegramUserbotService] Connecting client...`);
     await client.connect();
     
-    const { Api } = await import('telegram');
     console.log(`[TelegramUserbotService] Sending code...`);
     
     try {
@@ -58,11 +58,7 @@ export class TelegramUserbotService {
           phoneNumber: phoneNumber,
           apiId: parseInt(apiId),
           apiHash: apiHash,
-          settings: new Api.CodeSettings({
-            allowFlashcall: false,
-            currentNumber: true,
-            allowAppHash: true,
-          }),
+          settings: new Api.CodeSettings(),
         })
       );
 
@@ -84,15 +80,11 @@ export class TelegramUserbotService {
     }
 
     try {
-      console.log(`[TelegramUserbotService] Attempting manual signIn flow...`);
       if (!client.connected) {
         await client.connect();
       }
       
-      const { Api } = await import('telegram');
-
       try {
-        // Try to sign in with code first
         await client.invoke(
           new Api.auth.SignIn({
             phoneNumber,
@@ -100,26 +92,25 @@ export class TelegramUserbotService {
             phoneCode: code,
           })
         );
-      } catch (error: any) {
-        if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
-          console.log(`[TelegramUserbotService] 2FA Required`);
+      } catch (err: any) {
+        if (err.errorMessage === "SESSION_PASSWORD_NEEDED" || err.message.includes('SESSION_PASSWORD_NEEDED')) {
           if (!password) {
             return { needs2FA: true };
           }
 
-          console.log(`[TelegramUserbotService] Verifying 2FA password...`);
-          // Handle 2FA Password
-          const passwordSettings = await client.invoke(new Api.account.GetPassword());
-          const { computeCheck } = await import('telegram/Password');
-          const check = await computeCheck(passwordSettings, password);
-          
+          const passwordInfo = await client.invoke(
+            new Api.account.GetPassword()
+          );
+
+          const srp = await computeCheck(passwordInfo, password);
+
           await client.invoke(
             new Api.auth.CheckPassword({
-              password: check,
+              password: srp,
             })
           );
         } else {
-          throw error;
+          throw err;
         }
       }
 
@@ -133,12 +124,7 @@ export class TelegramUserbotService {
 
       return { success: true };
     } catch (error: any) {
-      console.error(`[TelegramUserbotService] Login error catch: ${error.message}`);
-      if (error.message.includes('SESSION_PASSWORD_NEEDED') || 
-          error.message.includes('password is empty') || 
-          error.message.includes('PASSWORD_HASH_INVALID')) {
-        return { needs2FA: true };
-      }
+      console.error(`[TelegramUserbotService] Login error: ${error.message}`);
       throw error;
     }
   }
