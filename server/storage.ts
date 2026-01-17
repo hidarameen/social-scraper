@@ -145,8 +145,8 @@ export class DatabaseStorage implements IStorage {
     await db.insert(sentPosts).values({ taskId, postId });
   }
   async cleanupSentPosts(): Promise<void> {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    await db.delete(sentPosts).where(lt(sentPosts.timestamp, twentyFourHoursAgo));
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    await db.delete(sentPosts).where(lt(sentPosts.timestamp, thirtyDaysAgo));
   }
 }
 

@@ -256,15 +256,15 @@ export class FacebookScraper {
             }
           }
 
-          // إذا لم يجد معرفاً، نستخدم بصمة ثابتة للنص
+          // إذا لم يجد معرفاً، نستخدم بصمة ثابتة للنص لمنع التكرار حتى لو تغير الرابط
           if (!postId) {
             let hash = 0;
-            const cleanText = postText.trim().slice(0, 200);
+            const cleanText = postText.trim().toLowerCase().replace(/\s+/g, '');
             for (let i = 0; i < cleanText.length; i++) {
               hash = ((hash << 5) - hash) + cleanText.charCodeAt(i);
               hash |= 0;
             }
-            postId = `txt_${Math.abs(hash)}`;
+            postId = `hsh_${Math.abs(hash)}`;
           }
 
           results.push({
