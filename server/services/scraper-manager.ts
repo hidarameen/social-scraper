@@ -55,7 +55,19 @@ export class ScraperManager {
         
         if (diffMinutes >= (task.interval || 60)) {
           console.log(`Running scheduled task: ${task.id} (${task.platform})`);
-          this.runTask(task).catch(err => console.error(`Scheduled task ${task.id} failed:`, err));
+          // Use an immediately invoked async function to catch errors for each task
+          (async () => {
+            try {
+              await this.runTask(task);
+            } catch (err) {
+              console.error(`Scheduled task ${task.id} failed:`, err);
+              await this.storage.createLog({
+                taskId: task.id,
+                status: "error",
+                message: `Task execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              }).catch(logErr => console.error("Failed to log error:", logErr));
+            }
+          })();
         }
       }
     } catch (e) {
