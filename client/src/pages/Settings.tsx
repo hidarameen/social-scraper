@@ -104,7 +104,13 @@ export default function Settings() {
         toast({ title: "Login successful", description: "Telegram Userbot session saved" });
       }
     } catch (e: any) {
-      toast({ title: "Error completing login", description: e.message, variant: "destructive" });
+      // Check if the error response itself indicates 2FA is needed
+      if (e.message?.includes('SESSION_PASSWORD_NEEDED') || e.message?.includes('password is empty')) {
+        setStep("2fa");
+        toast({ title: "2FA Required", description: "Please enter your cloud password" });
+      } else {
+        toast({ title: "Error completing login", description: e.message, variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
