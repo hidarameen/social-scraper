@@ -143,13 +143,14 @@ export default function Settings() {
   };
 
   const isConnected = !!settings?.find(s => s.key === "tg_session" && s.value);
+  const currentTgSession = settings?.find(s => s.key === "tg_session")?.value;
 
   // Use useEffect to sync connected state with UI step
   useEffect(() => {
     if (isConnected) {
       setStep("idle");
     }
-  }, [isConnected]);
+  }, [isConnected, currentTgSession]);
 
   return (
     <Layout>
