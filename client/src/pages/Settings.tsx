@@ -51,8 +51,6 @@ export default function Settings() {
       const settingsToSave = {
         telegram_bot_token: data.telegram_bot_token,
         default_user_agent: data.default_user_agent,
-        tg_api_id: data.tg_api_id,
-        tg_api_hash: data.tg_api_hash,
         tg_use_userbot: data.tg_use_userbot,
       };
 
@@ -66,17 +64,14 @@ export default function Settings() {
   };
 
   const handleStartLogin = async () => {
-    const { phoneNumber, tg_api_id, tg_api_hash } = form.getValues();
-    if (!phoneNumber || !tg_api_id || !tg_api_hash) {
-      toast({ title: "Missing fields", description: "Please fill in Phone, API ID and API Hash", variant: "destructive" });
+    const { phoneNumber } = form.getValues();
+    if (!phoneNumber) {
+      toast({ title: "Missing fields", description: "Please fill in Phone number", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      // First save the API credentials
-      await apiRequest("POST", "/api/settings", { tg_api_id, tg_api_hash });
-      
       const res = await apiRequest("POST", "/api/telegram/login/start", { phoneNumber });
       const { phoneCodeHash } = await res.json();
       setPhoneCodeHash(phoneCodeHash);
@@ -180,17 +175,6 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">API ID</label>
-                  <Input placeholder="123456" {...form.register("tg_api_id")} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">API Hash</label>
-                  <Input placeholder="abcdef..." {...form.register("tg_api_hash")} />
-                </div>
-              </div>
-
               {step === "idle" && (
                 <div className="space-y-4">
                   <div>
