@@ -14,8 +14,8 @@ export class TelegramUserbotService {
     }
 
     const settings = await this.storage.getSettings(userId);
-    const apiId = process.env.TG_API_ID;
-    const apiHash = process.env.TG_API_HASH;
+    const apiId = process.env.TG_API_ID || process.env.API_ID;
+    const apiHash = process.env.TG_API_HASH || process.env.API_HASH;
     const sessionStr = settings.find(s => s.key === 'tg_session')?.value;
 
     if (!apiId || !apiHash || !sessionStr) return null;
@@ -33,8 +33,8 @@ export class TelegramUserbotService {
   }
 
   async startLogin(userId: number, phoneNumber: string) {
-    const apiId = process.env.TG_API_ID;
-    const apiHash = process.env.TG_API_HASH;
+    const apiId = process.env.TG_API_ID || process.env.API_ID;
+    const apiHash = process.env.TG_API_HASH || process.env.API_HASH;
 
     if (!apiId || !apiHash) throw new Error("Missing API ID or API Hash in environment variables");
 
@@ -58,8 +58,8 @@ export class TelegramUserbotService {
 
     try {
       await client.signInUser({
-        apiId: parseInt(process.env.TG_API_ID!),
-        apiHash: process.env.TG_API_HASH!,
+        apiId: parseInt(process.env.TG_API_ID || process.env.API_ID || ""),
+        apiHash: process.env.TG_API_HASH || process.env.API_HASH || "",
       }, {
         phoneNumber: async () => phoneNumber,
         phoneCode: async () => code,
