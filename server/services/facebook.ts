@@ -86,8 +86,9 @@ export class FacebookScraper {
       // Navigate and wait
       try {
         let targetUrl = task.url;
+        // ضمان التوجه لقسم المنشورات دائماً
         if (!targetUrl.includes('/posts') && !targetUrl.includes('permalink')) {
-          targetUrl = targetUrl.endsWith('/') ? `${targetUrl}posts` : `${targetUrl}/posts`;
+          targetUrl = targetUrl.replace(/\/$/, '') + '/posts';
         }
         
         console.log(`[Facebook Scraper] Navigating to: ${targetUrl}`);
