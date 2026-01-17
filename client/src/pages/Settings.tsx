@@ -138,9 +138,13 @@ export default function Settings() {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      await apiRequest("DELETE", "/api/telegram/logout");
+      // Clear tg_session from database
+      await apiRequest("POST", "/api/settings", { tg_session: "" });
+      
+      // Invalidate queries to refresh UI
       await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({ title: "Logged out", description: "Telegram Userbot session cleared" });
+      
+      toast({ title: "Userbot Logged Out", description: "Telegram session has been cleared." });
       setStep("idle");
     } catch (e: any) {
       toast({ title: "Error logging out", description: e.message, variant: "destructive" });
