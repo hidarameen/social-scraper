@@ -1,5 +1,5 @@
-import { TelegramClient } from 'telethon';
-import { StringSession } from 'telethon/sessions';
+import { TelegramClient } from 'telegram';
+import { StringSession } from 'telegram/sessions';
 import { IStorage } from '../storage';
 
 export class TelegramUserbotService {
@@ -9,7 +9,8 @@ export class TelegramUserbotService {
 
   async getClient(userId: number): Promise<TelegramClient | null> {
     if (this.clients.has(userId)) {
-      return this.clients.get(userId)!;
+      const existingClient = this.clients.get(userId)!;
+      if (existingClient.connected) return existingClient;
     }
 
     const settings = await this.storage.getSettings(userId);
@@ -48,8 +49,6 @@ export class TelegramUserbotService {
       apiHash: apiHash,
     }, phoneNumber);
 
-    // Store phone code hash temporarily in memory or DB
-    // For simplicity, we'll store the client instance
     this.clients.set(userId, client);
     return result.phoneCodeHash;
   }
@@ -60,10 +59,11 @@ export class TelegramUserbotService {
 
     try {
       await client.signIn({
-        phoneNumber,
-        phoneCodeHash,
-        phoneCode: code,
-        password: password ? async () => password : undefined,
+        phoneNumber: async () => phoneNumber,
+        phoneCodeHash: async () => phoneCodeHash,
+        phoneCode: async () => code,
+        password: async () => password || "",
+        onError: (err) => { throw err; }
       });
 
       const sessionStr = (client.session as StringSession).save();
