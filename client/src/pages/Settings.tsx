@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useSettings, useUpdateSetting } from "@/hooks/use-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { Save, LogIn, ShieldCheck, Phone } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
@@ -112,6 +112,7 @@ export default function Settings() {
         toast({ title: "2FA Required", description: "Please enter your cloud password" });
       } else {
         setStep("idle");
+        await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
         toast({ title: "Login successful", description: "Telegram Userbot session saved" });
       }
     } catch (e: any) {
@@ -131,6 +132,7 @@ export default function Settings() {
     setLoading(true);
     try {
       await apiRequest("DELETE", "/api/telegram/logout");
+      await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
       toast({ title: "Logged out", description: "Telegram Userbot session cleared" });
       setStep("idle");
     } catch (e: any) {
