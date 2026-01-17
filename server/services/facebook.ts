@@ -20,9 +20,9 @@ export class FacebookScraper {
       return this.scrapeLegacy(task);
     }
 
-    let browser;
-    let context;
-    let page;
+    let browser: any;
+    let context: any;
+    let page: any;
     try {
       const userCookies = await storage.getCookies(task.userId);
       const fbCookies = userCookies.filter(c => c.platform === 'facebook');
@@ -35,7 +35,8 @@ export class FacebookScraper {
       context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1280, height: 800 },
-        locale: 'ar-EG'
+        locale: 'ar-EG',
+        ignoreHTTPSErrors: true
       });
 
       if (fbCookies.length > 0) {
@@ -92,7 +93,16 @@ export class FacebookScraper {
         }
         
         console.log(`[Facebook Scraper] Navigating to: ${targetUrl}`);
-        await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 90000 });
+        
+        // Use a more robust navigation strategy
+        await page.goto(targetUrl, { 
+          waitUntil: 'domcontentloaded', 
+          timeout: 45000 
+        }).catch(async (e) => {
+          console.warn(`[Facebook Scraper] Initial navigation failed, retrying with commit: ${e.message}`);
+          return page.goto(targetUrl, { waitUntil: 'commit', timeout: 30000 });
+        });
+
         await page.waitForTimeout(10000); // زيادة وقت الانتظار لضمان تحميل المحتوى الديناميكي
 
         // محاولة إغلاق النوافذ المنبثقة (مثل تسجيل الدخول)
@@ -111,6 +121,10 @@ export class FacebookScraper {
         }
       } catch (gotoErr: any) {
         console.error(`[Facebook Scraper] Navigation error: ${gotoErr.message}`);
+        // If browser is closed, try to return early
+        if (gotoErr.message.includes('closed')) {
+          return { items: 0, message: `Browser closed during navigation: ${gotoErr.message}` };
+        }
         return { items: 0, message: `Navigation failed: ${gotoErr.message}` };
       }
 
@@ -124,25 +138,30 @@ export class FacebookScraper {
       while (scrolls < maxScrolls) {
         if (page.isClosed()) break;
         
-        postsCount = await page.evaluate(() => {
-          const articles = document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"]');
-          return Array.from(articles).filter(el => !el.parentElement?.closest('div[role="article"]')).length;
-        });
-        
-        if (postsCount >= (task.postLimit || 10)) {
-          console.log(`[Facebook Scraper] Found ${postsCount} posts, stopping scroll.`);
+        try {
+          postsCount = await page.evaluate(() => {
+            const articles = document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"]');
+            return Array.from(articles).filter(el => !el.parentElement?.closest('div[role="article"]')).length;
+          });
+          
+          if (postsCount >= (task.postLimit || 10)) {
+            console.log(`[Facebook Scraper] Found ${postsCount} posts, stopping scroll.`);
+            break;
+          }
+
+          await this.storage.createLog({
+            taskId: task.id,
+            status: "running",
+            message: `[Scroll ${scrolls + 1}] Scanning page... (Found ${postsCount}/${task.postLimit})`,
+          }).catch(() => {});
+
+          await page.evaluate(() => window.scrollBy(0, 2000));
+          await page.waitForTimeout(3000);
+          scrolls++;
+        } catch (scrollErr: any) {
+          console.warn(`[Facebook Scraper] Scroll error at step ${scrolls}: ${scrollErr.message}`);
           break;
         }
-
-        await this.storage.createLog({
-          taskId: task.id,
-          status: "running",
-          message: `[Scroll ${scrolls + 1}] Scanning page... (Found ${postsCount}/${task.postLimit})`,
-        }).catch(() => {});
-
-        await page.evaluate(() => window.scrollBy(0, 2000));
-        await page.waitForTimeout(3000);
-        scrolls++;
       }
 
       if (page.isClosed()) return { items: 0, message: "Page closed during scrolling" };
