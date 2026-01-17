@@ -244,7 +244,7 @@ export class ScraperManager {
         // Find the absolute latest ID found in the scrape (the first one extracted)
         const latestId = allPosts[0].normalizedId || allPosts[0].id;
         updates.lastPostId = latestId;
-        console.log(`[ScraperManager] Updating lastPostId for task ${task.id} to: ${latestId}`);
+        console.log(`[ScraperManager] Task ${task.id}: Scraped ${allPosts.length} posts, latest ID: ${latestId}`);
       }
       await this.storage.updateTask(task.id, updates);
 
