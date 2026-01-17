@@ -38,7 +38,10 @@ export default function Settings() {
       settings.forEach(s => {
         values[s.key] = s.value;
       });
-      form.reset(values);
+      form.reset({
+        ...form.getValues(),
+        ...values
+      });
     }
   }, [settings, form]);
 
