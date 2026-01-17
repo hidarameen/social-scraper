@@ -154,8 +154,8 @@ export default function Settings() {
   };
 
   const isConnected = !!settings && (
-    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value) : false) ||
-    (typeof settings === 'object' && !Array.isArray(settings) ? !!(settings as any).tg_session : false)
+    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value && s.value.trim() !== "") : false) ||
+    (typeof settings === 'object' && !Array.isArray(settings) ? !!((settings as any).tg_session && (settings as any).tg_session.trim() !== "") : false)
   );
 
   const currentTgSession = settings ? (
