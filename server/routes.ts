@@ -45,20 +45,26 @@ export async function registerRoutes(
 
   app.post("/api/telegram/login/start", isAuthenticated, async (req: any, res) => {
     const { phoneNumber } = req.body;
+    console.log(`[Telegram] Starting login for user ${req.user.id}, phone: ${phoneNumber}`);
     try {
       const phoneCodeHash = await userbotService.startLogin(req.user.id, phoneNumber);
+      console.log(`[Telegram] Login started successfully, hash: ${phoneCodeHash}`);
       res.json({ phoneCodeHash });
     } catch (e: any) {
+      console.error(`[Telegram] Error starting login: ${e.message}`);
       res.status(400).json({ message: e.message });
     }
   });
 
   app.post("/api/telegram/login/complete", isAuthenticated, async (req: any, res) => {
     const { phoneNumber, code, phoneCodeHash, password } = req.body;
+    console.log(`[Telegram] Completing login for user ${req.user.id}, phone: ${phoneNumber}, hasPassword: ${!!password}`);
     try {
       const result = await userbotService.completeLogin(req.user.id, phoneNumber, code, phoneCodeHash, password);
+      console.log(`[Telegram] Login result: ${JSON.stringify(result)}`);
       res.json(result);
     } catch (e: any) {
+      console.error(`[Telegram] Error completing login: ${e.message}`);
       res.status(400).json({ message: e.message });
     }
   });

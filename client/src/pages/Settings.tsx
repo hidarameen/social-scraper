@@ -86,6 +86,7 @@ export default function Settings() {
 
   const handleCompleteLogin = async () => {
     const { phoneNumber, code, password } = form.getValues();
+    console.log("[Settings] handleCompleteLogin", { phoneNumber, code, hasPassword: !!password });
     setLoading(true);
     try {
       const res = await apiRequest("POST", "/api/telegram/login/complete", {
@@ -94,7 +95,14 @@ export default function Settings() {
         phoneCodeHash,
         password: password || undefined
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to complete login");
+      }
+
       const result = await res.json();
+      console.log("[Settings] Login result:", result);
 
       if (result.needs2FA) {
         setStep("2fa");
@@ -104,6 +112,7 @@ export default function Settings() {
         toast({ title: "Login successful", description: "Telegram Userbot session saved" });
       }
     } catch (e: any) {
+      console.error("[Settings] Login error:", e);
       // Check if the error response itself indicates 2FA is needed
       if (e.message?.includes('SESSION_PASSWORD_NEEDED') || e.message?.includes('password is empty')) {
         setStep("2fa");

@@ -33,30 +33,47 @@ export class TelegramUserbotService {
   }
 
   async startLogin(userId: number, phoneNumber: string) {
+    console.log(`[TelegramUserbotService] startLogin for user ${userId}, phone ${phoneNumber}`);
     const apiId = process.env.TG_API_ID || process.env.API_ID;
     const apiHash = process.env.TG_API_HASH || process.env.API_HASH;
 
-    if (!apiId || !apiHash) throw new Error("Missing API ID or API Hash in environment variables");
+    if (!apiId || !apiHash) {
+      console.error(`[TelegramUserbotService] Missing API ID or API Hash in environment variables`);
+      throw new Error("Missing API ID or API Hash in environment variables");
+    }
 
     const client = new TelegramClient(new StringSession(''), parseInt(apiId), apiHash, {
       connectionRetries: 5,
     });
 
+    console.log(`[TelegramUserbotService] Connecting client...`);
     await client.connect();
+    console.log(`[TelegramUserbotService] Client connected. Sending code...`);
     const result = await client.sendCode({
       apiId: parseInt(apiId),
       apiHash: apiHash,
     }, phoneNumber);
 
+    console.log(`[TelegramUserbotService] Code sent. PhoneCodeHash: ${result.phoneCodeHash}`);
     this.clients.set(userId, client);
     return result.phoneCodeHash;
   }
 
   async completeLogin(userId: number, phoneNumber: string, code: string, phoneCodeHash: string, password?: string) {
+    console.log(`[TelegramUserbotService] completeLogin for user ${userId}, phone ${phoneNumber}, passwordProvided: ${!!password}`);
     const client = this.clients.get(userId);
-    if (!client) throw new Error("No active login session found");
+    if (!client) {
+      console.error(`[TelegramUserbotService] No active login session found for user ${userId}`);
+      throw new Error("No active login session found");
+    }
 
     try {
+      console.log(`[TelegramUserbotService] Attempting signInUser...`);
+      // Re-connect if needed
+      if (!client.connected) {
+        await client.connect();
+      }
+      
       await client.signInUser({
         apiId: parseInt(process.env.TG_API_ID || process.env.API_ID || ""),
         apiHash: process.env.TG_API_HASH || process.env.API_HASH || "",
@@ -65,20 +82,22 @@ export class TelegramUserbotService {
         phoneCode: async () => code,
         password: async () => {
           if (!password) {
+            console.log(`[TelegramUserbotService] Password requested by library but not provided by user`);
             const err = new Error('SESSION_PASSWORD_NEEDED');
             throw err;
           }
           return password;
         },
         onError: (err) => {
-          // If password is required, this will be handled by the catch block
-          if (err.message.includes('SESSION_PASSWORD_NEEDED') || err.message.includes('password is empty')) {
-             return; // Let the async password function or catch handle it
+          console.error(`[TelegramUserbotService] Library onError callback: ${err.message}`);
+          if (err.message.includes('SESSION_PASSWORD_NEEDED') || err.message.includes('password is empty') || err.message.includes('PASSWORD_HASH_INVALID')) {
+             return; 
           }
           throw err;
         }
       });
 
+      console.log(`[TelegramUserbotService] Login successful. Saving session...`);
       const sessionStr = (client.session as StringSession).save();
       await this.storage.upsertSetting({
         userId,
@@ -86,8 +105,10 @@ export class TelegramUserbotService {
         value: sessionStr
       });
 
+      console.log(`[TelegramUserbotService] Session saved.`);
       return { success: true };
     } catch (error: any) {
+      console.error(`[TelegramUserbotService] Login error catch: ${error.message}`);
       if (error.message.includes('SESSION_PASSWORD_NEEDED') || error.message.includes('password is empty')) {
         return { needs2FA: true };
       }
