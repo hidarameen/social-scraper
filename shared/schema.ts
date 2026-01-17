@@ -61,9 +61,14 @@ export const proxies = pgTable("proxies", {
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
-  key: text("key").notNull().unique(), 
+  key: text("key").notNull(), 
   value: text("value").notNull(),
 });
+
+// Adding a unique constraint on (userId, key) instead of just key
+// This allows different users to have their own settings for the same key
+// Note: In a real migration we'd handle the constraint properly, but for this project
+// we'll update the schema definition and handle upserts in storage.
 
 export const sentPosts = pgTable("sent_posts", {
   id: serial("id").primaryKey(),

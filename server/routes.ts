@@ -32,12 +32,54 @@ async function seedDatabase(userId: number) {
   }
 }
 
+import { TelegramUserbotService } from "./services/telegram-userbot";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   // Setup Auth
   setupAuth(app);
+
+  const userbotService = new TelegramUserbotService(storage);
+
+  app.post("/api/telegram/login/start", isAuthenticated, async (req: any, res) => {
+    const { phoneNumber } = req.body;
+    try {
+      const phoneCodeHash = await userbotService.startLogin(req.user.id, phoneNumber);
+      res.json({ phoneCodeHash });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/telegram/login/complete", isAuthenticated, async (req: any, res) => {
+    const { phoneNumber, code, phoneCodeHash, password } = req.body;
+    try {
+      const result = await userbotService.completeLogin(req.user.id, phoneNumber, code, phoneCodeHash, password);
+      res.json(result);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/settings", isAuthenticated, async (req: any, res) => {
+    const settingsList = await storage.getSettings(req.user.id);
+    const settingsMap = settingsList.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
+    res.json(settingsMap);
+  });
+
+  app.post("/api/settings", isAuthenticated, async (req: any, res) => {
+    const entries = Object.entries(req.body);
+    for (const [key, value] of entries) {
+      await storage.upsertSetting({
+        userId: req.user.id,
+        key,
+        value: String(value),
+      });
+    }
+    res.json({ success: true });
+  });
 
   // Initialize Scraper Manager
   const scraperManager = new ScraperManager(storage);
