@@ -35,9 +35,16 @@ export default function Settings() {
   useEffect(() => {
     if (settings) {
       const values: Record<string, string> = {};
-      settings.forEach(s => {
-        values[s.key] = s.value;
-      });
+      if (Array.isArray(settings)) {
+        settings.forEach(s => {
+          values[s.key] = s.value;
+        });
+      } else if (typeof settings === 'object') {
+        Object.entries(settings).forEach(([key, value]) => {
+          values[key] = String(value);
+        });
+      }
+      
       form.reset({
         ...form.getValues(),
         ...values
@@ -142,8 +149,16 @@ export default function Settings() {
     }
   };
 
-  const isConnected = !!settings && Object.entries(settings).some(([key, value]) => key === "tg_session" && value);
-  const currentTgSession = settings ? (Object.entries(settings).find(([key]) => key === "tg_session")?.[1] as string | undefined) : undefined;
+  const isConnected = !!settings && (
+    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value) : false) ||
+    (typeof settings === 'object' && !Array.isArray(settings) ? !!(settings as any).tg_session : false)
+  );
+
+  const currentTgSession = settings ? (
+    Array.isArray(settings) 
+      ? settings.find(s => s.key === "tg_session")?.value 
+      : (settings as any).tg_session
+  ) : undefined;
 
   // Use useEffect to sync connected state with UI step
   useEffect(() => {

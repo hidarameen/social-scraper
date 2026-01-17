@@ -18,7 +18,7 @@ import { useSidebar } from "@/hooks/use-sidebar";
 
 export function Sidebar() {
   const [location] = useLocation();
-  const { logout } = useAuth();
+  const { logoutMutation } = useAuth();
   const { isOpen, toggle } = useSidebar();
 
   const links = [
@@ -84,7 +84,8 @@ export function Sidebar() {
             "w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all",
             isOpen ? "justify-start" : "justify-center px-0"
           )}
-          onClick={() => logout()}
+          onClick={() => logoutMutation.mutate()}
+          disabled={logoutMutation.isPending}
         >
           <LogOut size={18} className={clsx(isOpen && "mr-2")} />
           {isOpen && <span className="animate-in fade-in duration-300">Sign Out</span>}
