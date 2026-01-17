@@ -215,7 +215,7 @@ export class FacebookScraper {
           const videoUrl = videoLink ? (videoLink as HTMLAnchorElement).href : undefined;
 
           // محاولة العثور على رابط المنشور الحقيقي
-          const linkSelectors = [
+          const postLinks = [
             'a[href*="/posts/"]',
             'a[href*="/permalink.php"]',
             'a[href*="/reel/"]',
@@ -224,33 +224,52 @@ export class FacebookScraper {
             'span > a[role="link"]'
           ];
           
-          let postUrl = task_url;
-          for (const sel of linkSelectors) {
-            const l = container.querySelector(sel);
-            if (l && (l as HTMLAnchorElement).href) {
-              postUrl = (l as HTMLAnchorElement).href;
-              break;
+          // 3. استخراج المعرف الفريد للمنشور بدقة (Post ID)
+          // هذا الجزء بالغ الأهمية لمنع التكرار
+          let postId = '';
+          let finalPostUrl = task_url;
+
+          for (const sel of postLinks) {
+            const linkEl = container.querySelector(sel) as HTMLAnchorElement;
+            if (linkEl && linkEl.href) {
+              const href = linkEl.href;
+              finalPostUrl = href;
+              
+              // محاولة استخراج المعرف الرقمي أو النصي من الرابط
+              if (href.includes('/posts/')) {
+                const match = href.match(/\/posts\/([a-zA-Z0-9.]+)/);
+                if (match) postId = match[1];
+              } else if (href.includes('fbid=')) {
+                try {
+                  const urlParams = new URLSearchParams(new URL(href).search);
+                  postId = urlParams.get('fbid') || '';
+                } catch(e) {}
+              } else if (href.includes('/reel/')) {
+                const match = href.match(/\/reel\/(\d+)/);
+                if (match) postId = match[1];
+              } else if (href.includes('/videos/')) {
+                const match = href.match(/\/videos\/(\d+)/);
+                if (match) postId = match[1];
+              }
+              
+              if (postId) break;
             }
           }
-          
-          let postId = '';
-          try {
-            const urlObj = new URL(postUrl);
-            postId = urlObj.pathname + urlObj.search;
-            if (postId.length < 5) throw new Error();
-          } catch(e) {
-            // توليد معرف ثابت بناءً على النص إذا فشل الرابط
+
+          // إذا لم يجد معرفاً، نستخدم بصمة ثابتة للنص
+          if (!postId) {
             let hash = 0;
-            for (let i = 0; i < postText.length; i++) {
-              hash = ((hash << 5) - hash) + postText.charCodeAt(i);
+            const cleanText = postText.trim().slice(0, 200);
+            for (let i = 0; i < cleanText.length; i++) {
+              hash = ((hash << 5) - hash) + cleanText.charCodeAt(i);
               hash |= 0;
             }
-            postId = `gen_${Math.abs(hash)}`;
+            postId = `txt_${Math.abs(hash)}`;
           }
 
           results.push({
             text: postText,
-            url: postUrl,
+            url: finalPostUrl,
             id: postId,
             image: imageUrl,
             video: videoUrl,
