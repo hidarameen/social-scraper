@@ -87,7 +87,7 @@ export class FacebookScraper {
       try {
         let targetUrl = task.url;
         // ضمان التوجه لقسم المنشورات دائماً
-        if (!targetUrl.includes('/posts') && !targetUrl.includes('permalink')) {
+        if (!targetUrl.includes('/posts') && !targetUrl.includes('permalink') && !targetUrl.includes('/share/')) {
           targetUrl = targetUrl.replace(/\/$/, '') + '/posts';
         }
         
