@@ -63,8 +63,20 @@ export class TelegramUserbotService {
       }, {
         phoneNumber: async () => phoneNumber,
         phoneCode: async () => code,
-        password: async () => password || "",
-        onError: (err) => { throw err; }
+        password: async () => {
+          if (!password) {
+            const err = new Error('SESSION_PASSWORD_NEEDED');
+            throw err;
+          }
+          return password;
+        },
+        onError: (err) => {
+          // If password is required, this will be handled by the catch block
+          if (err.message.includes('SESSION_PASSWORD_NEEDED') || err.message.includes('password is empty')) {
+             return; // Let the async password function or catch handle it
+          }
+          throw err;
+        }
       });
 
       const sessionStr = (client.session as StringSession).save();
@@ -76,7 +88,7 @@ export class TelegramUserbotService {
 
       return { success: true };
     } catch (error: any) {
-      if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
+      if (error.message.includes('SESSION_PASSWORD_NEEDED') || error.message.includes('password is empty')) {
         return { needs2FA: true };
       }
       throw error;
