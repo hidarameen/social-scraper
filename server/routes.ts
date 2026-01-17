@@ -78,6 +78,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/telegram/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const client = await userbotService.getClient(req.user.id);
+      res.json({ connected: !!(client && client.connected) });
+    } catch (e: any) {
+      res.json({ connected: false });
+    }
+  });
+
   app.get("/api/settings", isAuthenticated, async (req: any, res) => {
     const settingsList = await storage.getSettings(req.user.id);
     const settingsMap = settingsList.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
