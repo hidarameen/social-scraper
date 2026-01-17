@@ -16,7 +16,69 @@ export class TelegramService {
     this.userbotService = new TelegramUserbotService(storage);
   }
 
-  // ... (keeping existing private methods)
+  private async getVideoMetadata(filePath: string): Promise<{ duration?: number, width?: number, height?: number }> {
+    return new Promise((resolve) => {
+      ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) {
+          console.error("FFprobe error:", err);
+          resolve({});
+          return;
+        }
+        
+        // Find the video stream
+        const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+        
+        // Duration can be in format.duration or stream.duration
+        let duration = metadata.format.duration;
+        if (!duration && videoStream?.duration) {
+          duration = parseFloat(videoStream.duration);
+        }
+
+        console.log(`Metadata for ${path.basename(filePath)}: duration=${duration}, size=${videoStream?.width}x${videoStream?.height}`);
+
+        resolve({
+          duration: duration ? Math.round(Number(duration)) : undefined,
+          width: videoStream?.width,
+          height: videoStream?.height
+        });
+      });
+    });
+  }
+
+  private async generateThumbnail(videoPath: string, thumbnailPath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      // Create a more robust thumbnail generation
+      // We try to take a screenshot at 1 second, or 10% of duration if 1 second fails
+      ffmpeg(videoPath)
+        .screenshots({
+          timestamps: [1], // Start at 1 second
+          filename: path.basename(thumbnailPath),
+          folder: path.dirname(thumbnailPath),
+          size: '320x?'
+        })
+        .on('end', () => {
+          if (fs.existsSync(thumbnailPath) && fs.statSync(thumbnailPath).size > 0) {
+            resolve(true);
+          } else {
+            console.error("Thumbnail generated but file is empty or missing");
+            resolve(false);
+          }
+        })
+        .on('error', (err) => {
+          console.error("Thumbnail generation error:", err);
+          // Try a fallback: first frame
+          ffmpeg(videoPath)
+            .screenshots({
+              timestamps: [0],
+              filename: path.basename(thumbnailPath),
+              folder: path.dirname(thumbnailPath),
+              size: '320x?'
+            })
+            .on('end', () => resolve(fs.existsSync(thumbnailPath)))
+            .on('error', () => resolve(false));
+        });
+    });
+  }
 
   async sendMessage(userId: number, target: string, message: string, image?: string, video?: string) {
     try {

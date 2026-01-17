@@ -57,9 +57,11 @@ export class TelegramUserbotService {
     if (!client) throw new Error("No active login session found");
 
     try {
-      await client.signIn({
+      await client.signInUser({
+        apiId: parseInt(process.env.TG_API_ID!),
+        apiHash: process.env.TG_API_HASH!,
+      }, {
         phoneNumber: async () => phoneNumber,
-        phoneCodeHash: async () => phoneCodeHash,
         phoneCode: async () => code,
         password: async () => password || "",
         onError: (err) => { throw err; }
