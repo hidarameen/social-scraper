@@ -145,7 +145,19 @@ export class ScraperManager {
       // Filter against database (sent_posts)
       const newPosts = [];
       let alreadySentCount = 0;
+      
+      // Get the last sent post ID for this task to stop processing older ones
+      const lastPostId = task.lastPostId;
+      let foundLastSeen = false;
+
       for (const post of uniqueBatch) {
+        // If we encountered the last seen post ID, we can stop adding "new" posts
+        // because usually posts are ordered by date (newest first)
+        if (lastPostId && post.normalizedId === lastPostId) {
+          foundLastSeen = true;
+          break;
+        }
+
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
           // AI Enhancement if enabled
