@@ -58,9 +58,9 @@ export class TelegramUserbotService {
           phoneNumber: phoneNumber,
           apiId: parseInt(apiId),
           apiHash: apiHash,
-          settings: new Api.CodeSettings(),
+          settings: new Api.CodeSettings({}),
         })
-      );
+      ) as any;
 
       console.log(`[TelegramUserbotService] Code sent. PhoneCodeHash: ${result.phoneCodeHash}`);
       this.clients.set(userId, client);
