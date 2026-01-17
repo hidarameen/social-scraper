@@ -92,8 +92,14 @@ export class FacebookScraper {
         }
         
         console.log(`[Facebook Scraper] Navigating to: ${targetUrl}`);
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(5000);
+        await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 90000 });
+        await page.waitForTimeout(10000); // زيادة وقت الانتظار لضمان تحميل المحتوى الديناميكي
+
+        // محاولة إغلاق النوافذ المنبثقة (مثل تسجيل الدخول)
+        try {
+          const closeButton = await page.$('[aria-label="Close"], [aria-label="إغلاق"], .x92rt8a');
+          if (closeButton) await closeButton.click();
+        } catch (e) {}
 
         // Dynamic AI Selector Extraction
         if (task.aiEnabled) {
@@ -118,7 +124,10 @@ export class FacebookScraper {
       while (scrolls < maxScrolls) {
         if (page.isClosed()) break;
         
-        postsCount = await page.evaluate(() => document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"]').length);
+        postsCount = await page.evaluate(() => {
+          const articles = document.querySelectorAll('div[role="article"], div[data-testid="fbfeed_story"]');
+          return Array.from(articles).filter(el => !el.parentElement?.closest('div[role="article"]')).length;
+        });
         
         if (postsCount >= (task.postLimit || 10)) {
           console.log(`[Facebook Scraper] Found ${postsCount} posts, stopping scroll.`);
