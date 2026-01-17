@@ -52,8 +52,10 @@ export class AIService {
       
       let prompt = customPrompt || `Analyze the following content from a social media page. 
       Determine if it is an actual post (not a comment, ad, or sidebar element).
+      Maintain the original language and tone of the text. Do not translate. 
+      If you are not asked to summarize or rewrite, keep 'improvedText' exactly the same as the original content.
       You must return the response in JSON format.
-      Expected JSON format: { "improvedText": "summary", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }`;
+      Expected JSON format: { "improvedText": "original or improved text", "relevanceScore": 0-100, "tags": ["tag1"], "isPost": true/false }`;
 
       // Always ensure the word "json" is in the prompt to satisfy OpenAI's requirements
       if (!prompt.toLowerCase().includes("json")) {
