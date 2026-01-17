@@ -168,13 +168,14 @@ export class FacebookScraper {
             
             // التحقق من أن العنصر يحتوي على بصمة منشور
             // تم تحسين الفلترة لتكون أكثر مرونة مع تغيرات فيسبوك المستمرة
-            const isSuggested = !!el.innerText.includes('Suggested for you') || !!el.innerText.includes('مقترح لك') || !!el.innerText.includes('Sponsored') || !!el.innerText.includes('ممول');
+            const textContent = el.textContent || '';
+            const isSuggested = !!textContent.includes('Suggested for you') || !!textContent.includes('مقترح لك') || !!textContent.includes('Sponsored') || !!textContent.includes('ممول');
             const hasPostMetadata = !!el.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"]');
             
             // استبعاد الفيديوهات التي ليست منشورات أصلية (مثل المقترحات)
             const isExternalVideo = !!el.closest('[aria-label="Reels"]');
             
-            return isInMainFeed && hasPostMetadata && !isSuggested && !isExternalVideo && el.innerText.length > 20;
+            return isInMainFeed && hasPostMetadata && !isSuggested && !isExternalVideo && textContent.length > 20;
           });
 
         for (const container of containers) {

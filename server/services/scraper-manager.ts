@@ -250,6 +250,7 @@ export class ScraperManager {
 
       // Send to Telegram if new items found
       if (task.target && newPosts.length > 0) {
+        console.log(`[ScraperManager] Task ${task.id}: Sending ${newPosts.length} new posts to Telegram target: ${task.target}`);
         // Send in reverse order so newest is last in Telegram
         for (const post of [...newPosts].reverse()) {
           try {
