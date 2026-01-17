@@ -138,10 +138,10 @@ export default function Settings() {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      // Clear tg_session from database
+      // Clear tg_session from database by sending empty string to /api/settings
       await apiRequest("POST", "/api/settings", { tg_session: "" });
       
-      // Invalidate queries to refresh UI
+      // Invalidate queries to refresh UI and force re-fetch settings
       await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
       
       toast({ title: "Userbot Logged Out", description: "Telegram session has been cleared." });
@@ -153,9 +153,10 @@ export default function Settings() {
     }
   };
 
+  // Improved connection detection logic
   const isConnected = !!settings && (
-    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value && s.value.trim() !== "") : false) ||
-    (typeof settings === 'object' && !Array.isArray(settings) ? !!((settings as any).tg_session && (settings as any).tg_session.trim() !== "") : false)
+    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value && s.value.trim().length > 10) : false) ||
+    (typeof settings === 'object' && !Array.isArray(settings) ? !!((settings as any).tg_session && String((settings as any).tg_session).trim().length > 10) : false)
   );
 
   const currentTgSession = settings ? (
@@ -277,6 +278,7 @@ export default function Settings() {
                     className="w-full gap-2" 
                     onClick={handleLogout}
                     disabled={loading}
+                    data-testid="button-userbot-logout"
                   >
                     Logout Userbot
                   </Button>
