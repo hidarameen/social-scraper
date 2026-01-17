@@ -139,6 +139,13 @@ export default function Settings() {
 
   const isConnected = !!settings?.find(s => s.key === "tg_session" && s.value);
 
+  // Use useEffect to sync connected state with UI step
+  useEffect(() => {
+    if (isConnected) {
+      setStep("idle");
+    }
+  }, [isConnected]);
+
   return (
     <Layout>
       <div className="mb-6">
@@ -156,15 +163,39 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-2 pt-2">
-                <input 
-                  type="checkbox" 
-                  id="tg_use_userbot"
-                  checked={form.watch("tg_use_userbot") === "true"}
-                  onChange={(e) => form.setValue("tg_use_userbot", e.target.checked ? "true" : "false")}
-                  className="rounded border-gray-300"
-                />
-                <label htmlFor="tg_use_userbot" className="text-sm font-medium">Use Userbot instead of Bot Token</label>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 pt-2">
+                  <input 
+                    type="checkbox" 
+                    id="tg_use_userbot"
+                    checked={form.watch("tg_use_userbot") === "true"}
+                    onChange={(e) => form.setValue("tg_use_userbot", e.target.checked ? "true" : "false")}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="tg_use_userbot" className="text-sm font-medium">Use Userbot instead of Bot Token</label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Mode:</span>
+                  <div className="flex bg-muted p-1 rounded-md">
+                    <Button 
+                      variant={form.watch("tg_use_userbot") === "false" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-7 px-3 text-xs"
+                      onClick={() => form.setValue("tg_use_userbot", "false")}
+                    >
+                      Bot Token
+                    </Button>
+                    <Button 
+                      variant={form.watch("tg_use_userbot") === "true" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-7 px-3 text-xs"
+                      onClick={() => form.setValue("tg_use_userbot", "true")}
+                    >
+                      Userbot
+                    </Button>
+                  </div>
+                </div>
               </div>
               
               {form.watch("tg_use_userbot") === "false" && (
