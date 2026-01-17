@@ -60,7 +60,7 @@ export class TelegramUserbotService {
   }
 
   async completeLogin(userId: number, phoneNumber: string, code: string, phoneCodeHash: string, password?: string) {
-    console.log(`[TelegramUserbotService] completeLogin for user ${userId}, phone ${phoneNumber}, passwordProvided: ${!!password}`);
+    console.log(`[TelegramUserbotService] completeLogin for user ${userId}, phone ${phoneNumber}`);
     const client = this.clients.get(userId);
     if (!client) {
       console.error(`[TelegramUserbotService] No active login session found for user ${userId}`);
@@ -68,37 +68,29 @@ export class TelegramUserbotService {
     }
 
     try {
-      console.log(`[TelegramUserbotService] Attempting signIn...`);
+      console.log(`[TelegramUserbotService] Attempting client.start...`);
       if (!client.connected) {
         await client.connect();
       }
       
-      try {
-        await client.signIn({
-          phoneNumber: async () => phoneNumber,
-          phoneCode: async () => code,
-          password: async (hint) => {
-            if (!password) {
-              console.log(`[TelegramUserbotService] 2FA Password needed. Hint: ${hint}`);
-              throw new Error('SESSION_PASSWORD_NEEDED');
-            }
-            return password;
-          },
-          phoneCodeHash: phoneCodeHash,
-          onError: (err) => {
-            console.error(`[TelegramUserbotService] client.signIn error: ${err.message}`);
+      let passwordRequired = false;
+
+      await client.start({
+        phoneNumber: async () => phoneNumber,
+        phoneCode: async () => code,
+        password: async () => {
+          if (!password) {
+            console.log(`[TelegramUserbotService] 2FA Password needed`);
+            passwordRequired = true;
+            // Throwing to break client.start and return needs2FA to frontend
+            throw new Error('SESSION_PASSWORD_NEEDED');
           }
-        });
-      } catch (innerError: any) {
-        // Handle the specific GramJS error for 2FA password required
-        if (innerError.message.includes('SESSION_PASSWORD_NEEDED') || 
-            innerError.message.includes('password is empty') || 
-            innerError.message.includes('PASSWORD_HASH_INVALID')) {
-          console.log(`[TelegramUserbotService] 2FA required detected in inner catch`);
-          return { needs2FA: true };
+          return password;
+        },
+        onError: (err) => {
+          console.error(`[TelegramUserbotService] client.start error: ${err.message}`);
         }
-        throw innerError;
-      }
+      });
 
       console.log(`[TelegramUserbotService] Login successful. Saving session...`);
       const sessionStr = (client.session as StringSession).save();
@@ -108,10 +100,9 @@ export class TelegramUserbotService {
         value: sessionStr
       });
 
-      console.log(`[TelegramUserbotService] Session saved.`);
       return { success: true };
     } catch (error: any) {
-      console.error(`[TelegramUserbotService] Login error outer catch: ${error.message}`);
+      console.error(`[TelegramUserbotService] Login error catch: ${error.message}`);
       if (error.message.includes('SESSION_PASSWORD_NEEDED') || 
           error.message.includes('password is empty') || 
           error.message.includes('PASSWORD_HASH_INVALID')) {
