@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useSettings, useUpdateSetting } from "@/hooks/use-settings";
 import { useAuth } from "@/hooks/use-auth";
-import { Save, LogIn, ShieldCheck, Phone } from "lucide-react";
+import { Save, LogIn, ShieldCheck, Phone, RefreshCw } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Settings() {
   const { data: settings } = useSettings();
@@ -18,6 +19,13 @@ export default function Settings() {
   const [step, setStep] = useState<"idle" | "code" | "2fa">("idle");
   const [phoneCodeHash, setPhoneCodeHash] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const { data: status, refetch: refetchStatus } = useQuery({
+    queryKey: ["/api/telegram/status"],
+    enabled: !!user,
+  });
+
+  const isConnected = !!status?.connected;
 
   const form = useForm({
     defaultValues: {
@@ -96,7 +104,6 @@ export default function Settings() {
 
   const handleCompleteLogin = async () => {
     const { phoneNumber, code, password } = form.getValues();
-    console.log("[Settings] handleCompleteLogin", { phoneNumber, code, hasPassword: !!password });
     setLoading(true);
     try {
       const res = await apiRequest("POST", "/api/telegram/login/complete", {
@@ -112,18 +119,19 @@ export default function Settings() {
       }
 
       const result = await res.json();
-      console.log("[Settings] Login result:", result);
 
       if (result.needs2FA) {
         setStep("2fa");
         toast({ title: "2FA Required", description: "Please enter your cloud password" });
       } else {
         setStep("idle");
-        await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/settings"] }),
+          refetchStatus()
+        ]);
         toast({ title: "Login successful", description: "Telegram Userbot session saved" });
       }
     } catch (e: any) {
-      console.error("[Settings] Login error:", e);
       if (e.message?.includes('SESSION_PASSWORD_NEEDED') || e.message?.includes('password is empty')) {
         setStep("2fa");
         toast({ title: "2FA Required", description: "Please enter your cloud password" });
@@ -138,12 +146,11 @@ export default function Settings() {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      // Clear tg_session from database by sending empty string to /api/settings
       await apiRequest("POST", "/api/settings", { tg_session: "" });
-      
-      // Invalidate queries to refresh UI and force re-fetch settings
-      await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/settings"] }),
+        refetchStatus()
+      ]);
       toast({ title: "Userbot Logged Out", description: "Telegram session has been cleared." });
       setStep("idle");
     } catch (e: any) {
@@ -152,25 +159,6 @@ export default function Settings() {
       setLoading(false);
     }
   };
-
-  // Improved connection detection logic
-  const isConnected = !!settings && (
-    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value && s.value.trim().length > 50) : false) ||
-    (typeof settings === 'object' && !Array.isArray(settings) ? !!((settings as any).tg_session && String((settings as any).tg_session).trim().length > 50) : false)
-  );
-
-  const currentTgSession = settings ? (
-    Array.isArray(settings) 
-      ? settings.find(s => s.key === "tg_session")?.value 
-      : (settings as any).tg_session
-  ) : undefined;
-
-  // Use useEffect to sync connected state with UI step
-  useEffect(() => {
-    if (isConnected) {
-      setStep("idle");
-    }
-  }, [isConnected, currentTgSession]);
 
   return (
     <Layout>
@@ -269,9 +257,14 @@ export default function Settings() {
             <CardContent className="space-y-4">
               {isConnected ? (
                 <div className="space-y-4 bg-green-500/5 p-4 rounded-lg border border-green-500/10">
-                  <div className="flex items-center gap-2 text-green-600 mb-2">
-                    <ShieldCheck size={18} />
-                    <span className="text-sm font-semibold">Userbot Connected</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <ShieldCheck size={18} />
+                      <span className="text-sm font-semibold">Userbot Connected</span>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => refetchStatus()} disabled={loading}>
+                      <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
                   <Button 
                     variant="destructive" 
