@@ -48,15 +48,31 @@ export class TelegramUserbotService {
 
     console.log(`[TelegramUserbotService] Connecting client...`);
     await client.connect();
-    console.log(`[TelegramUserbotService] Client connected. Sending code...`);
-    const result = await client.sendCode({
-      apiId: parseInt(apiId),
-      apiHash: apiHash,
-    }, phoneNumber);
+    
+    const { Api } = await import('telegram');
+    console.log(`[TelegramUserbotService] Sending code...`);
+    
+    try {
+      const result = await client.invoke(
+        new Api.auth.SendCode({
+          phoneNumber: phoneNumber,
+          apiId: parseInt(apiId),
+          apiHash: apiHash,
+          settings: new Api.CodeSettings({
+            allowFlashcall: false,
+            currentNumber: true,
+            allowAppHash: true,
+          }),
+        })
+      );
 
-    console.log(`[TelegramUserbotService] Code sent. PhoneCodeHash: ${result.phoneCodeHash}`);
-    this.clients.set(userId, client);
-    return result.phoneCodeHash;
+      console.log(`[TelegramUserbotService] Code sent. PhoneCodeHash: ${result.phoneCodeHash}`);
+      this.clients.set(userId, client);
+      return result.phoneCodeHash;
+    } catch (error: any) {
+      console.error(`[TelegramUserbotService] SendCode error: ${error.message}`);
+      throw error;
+    }
   }
 
   async completeLogin(userId: number, phoneNumber: string, code: string, phoneCodeHash: string, password?: string) {
@@ -68,29 +84,44 @@ export class TelegramUserbotService {
     }
 
     try {
-      console.log(`[TelegramUserbotService] Attempting client.start...`);
+      console.log(`[TelegramUserbotService] Attempting manual signIn flow...`);
       if (!client.connected) {
         await client.connect();
       }
       
-      let passwordRequired = false;
+      const { Api } = await import('telegram');
 
-      await client.start({
-        phoneNumber: async () => phoneNumber,
-        phoneCode: async () => code,
-        password: async () => {
+      try {
+        // Try to sign in with code first
+        await client.invoke(
+          new Api.auth.SignIn({
+            phoneNumber,
+            phoneCodeHash,
+            phoneCode: code,
+          })
+        );
+      } catch (error: any) {
+        if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
+          console.log(`[TelegramUserbotService] 2FA Required`);
           if (!password) {
-            console.log(`[TelegramUserbotService] 2FA Password needed`);
-            passwordRequired = true;
-            // Throwing to break client.start and return needs2FA to frontend
-            throw new Error('SESSION_PASSWORD_NEEDED');
+            return { needs2FA: true };
           }
-          return password;
-        },
-        onError: (err) => {
-          console.error(`[TelegramUserbotService] client.start error: ${err.message}`);
+
+          console.log(`[TelegramUserbotService] Verifying 2FA password...`);
+          // Handle 2FA Password
+          const passwordSettings = await client.invoke(new Api.account.GetPassword());
+          const { computeCheck } = await import('telegram/Password');
+          const check = await computeCheck(passwordSettings, password);
+          
+          await client.invoke(
+            new Api.auth.CheckPassword({
+              password: check,
+            })
+          );
+        } else {
+          throw error;
         }
-      });
+      }
 
       console.log(`[TelegramUserbotService] Login successful. Saving session...`);
       const sessionStr = (client.session as StringSession).save();
