@@ -163,15 +163,20 @@ export class ScraperManager {
       let foundLastSeen = false;
 
       for (const post of uniqueBatch) {
+        // Log the post we are checking
+        console.log(`[ScraperManager] Checking post: ${post.normalizedId}`);
+
         // If we encountered the last seen post ID, we can stop adding "new" posts
         // because usually posts are ordered by date (newest first)
         if (lastPostId && post.normalizedId === lastPostId) {
+          console.log(`[ScraperManager] Reached lastPostId: ${lastPostId}. Stopping search for new posts.`);
           foundLastSeen = true;
           break;
         }
 
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
+          console.log(`[ScraperManager] Post ${post.normalizedId} is NEW.`);
           // AI Enhancement if enabled
           if (task.aiEnabled) {
             try {

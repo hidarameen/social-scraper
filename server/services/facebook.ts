@@ -100,11 +100,11 @@ export class FacebookScraper {
           timeout: 45000 
         }).catch(async (e: any) => {
           console.warn(`[Facebook Scraper] Initial navigation failed, retrying with commit: ${e.message}`);
-          if (page.isClosed()) throw e;
+          if (!page || page.isClosed()) throw e;
           return page.goto(targetUrl, { waitUntil: 'commit', timeout: 30000 });
         });
 
-        if (page.isClosed()) throw new Error("Browser closed after navigation");
+        if (!page || page.isClosed()) throw new Error("Browser closed after navigation");
         await page.waitForTimeout(10000); // زيادة وقت الانتظار لضمان تحميل المحتوى الديناميكي
 
         // محاولة إغلاق النوافذ المنبثقة (مثل تسجيل الدخول)
@@ -138,7 +138,7 @@ export class FacebookScraper {
       let postsCount = 0;
 
       while (scrolls < maxScrolls) {
-        if (page.isClosed()) {
+        if (!page || page.isClosed()) {
           console.warn("[Facebook Scraper] Page closed during scroll loop");
           break;
         }
@@ -160,8 +160,9 @@ export class FacebookScraper {
             message: `[Scroll ${scrolls + 1}] Scanning page... (Found ${postsCount}/${task.postLimit})`,
           }).catch(() => {});
 
+          if (!page || page.isClosed()) break;
           await page.evaluate(() => window.scrollBy(0, 2000));
-          if (page.isClosed()) break;
+          if (!page || page.isClosed()) break;
           await page.waitForTimeout(3000);
           scrolls++;
         } catch (scrollErr: any) {
@@ -319,7 +320,7 @@ export class FacebookScraper {
 
       if (uniquePosts.length > 0) {
         for (const p of uniquePosts) {
-          if (page.isClosed()) break;
+          if (!page || page.isClosed()) break;
           const shortText = p.text.substring(0, 50).replace(/\n/g, ' ') + "...";
           await this.storage.createLog({
             taskId: task.id,
