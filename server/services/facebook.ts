@@ -156,12 +156,15 @@ export class FacebookScraper {
             // إضافة فلاتر إضافية للتأكد من أنها في قسم المنشورات
             const isInMainFeed = !!el.closest('div[role="main"], [data-pagelet="ProfileTimeline"], [data-pagelet="GroupFeed"]');
             
-            // التأكد من أن العنصر يحتوي على بصمة منشور (مثل وقت النشر أو زر المشاركة)
-            // تم إضافة فلاتر إضافية لاستبعاد المنشورات المقترحة والتركيز على منشورات الصفحة فقط
-            const isSuggested = !!el.innerText.includes('Suggested for you') || !!el.innerText.includes('مقترح لك');
-            const hasPostMetadata = !!el.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"]');
+            // التحقق من أن العنصر يحتوي على بصمة منشور
+            // تم تحسين الفلترة لتكون أكثر مرونة مع تغيرات فيسبوك المستمرة
+            const isSuggested = !!el.innerText.includes('Suggested for you') || !!el.innerText.includes('مقترح لك') || !!el.innerText.includes('Sponsored') || !!el.innerText.includes('ممول');
+            const hasPostMetadata = !!el.querySelector('a[href*="/posts/"], a[href*="/permalink.php"], a[href*="/reel/"], a[href*="/videos/"]');
             
-            return isInMainFeed && hasPostMetadata && !isSuggested && el.innerText.length > 20;
+            // استبعاد الفيديوهات التي ليست منشورات أصلية (مثل المقترحات)
+            const isExternalVideo = !!el.closest('[aria-label="Reels"]');
+            
+            return isInMainFeed && hasPostMetadata && !isSuggested && !isExternalVideo && el.innerText.length > 20;
           });
 
         for (const container of containers) {
