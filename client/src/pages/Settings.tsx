@@ -155,8 +155,8 @@ export default function Settings() {
 
   // Improved connection detection logic
   const isConnected = !!settings && (
-    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value && s.value.trim().length > 10) : false) ||
-    (typeof settings === 'object' && !Array.isArray(settings) ? !!((settings as any).tg_session && String((settings as any).tg_session).trim().length > 10) : false)
+    (Array.isArray(settings) ? settings.some(s => s.key === "tg_session" && s.value && s.value.trim().length > 50) : false) ||
+    (typeof settings === 'object' && !Array.isArray(settings) ? !!((settings as any).tg_session && String((settings as any).tg_session).trim().length > 50) : false)
   );
 
   const currentTgSession = settings ? (
