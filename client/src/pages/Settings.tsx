@@ -142,8 +142,8 @@ export default function Settings() {
     }
   };
 
-  const isConnected = !!settings?.find(s => s.key === "tg_session" && s.value);
-  const currentTgSession = settings?.find(s => s.key === "tg_session")?.value;
+  const isConnected = !!settings && Object.entries(settings).some(([key, value]) => key === "tg_session" && value);
+  const currentTgSession = settings ? (Object.entries(settings).find(([key]) => key === "tg_session")?.[1] as string | undefined) : undefined;
 
   // Use useEffect to sync connected state with UI step
   useEffect(() => {
