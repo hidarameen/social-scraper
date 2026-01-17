@@ -68,32 +68,24 @@ export class TelegramUserbotService {
     }
 
     try {
-      console.log(`[TelegramUserbotService] Attempting signInUser...`);
+      console.log(`[TelegramUserbotService] Attempting signIn...`);
       // Re-connect if needed
       if (!client.connected) {
         await client.connect();
       }
       
-      await client.signInUser({
-        apiId: parseInt(process.env.TG_API_ID || process.env.API_ID || ""),
-        apiHash: process.env.TG_API_HASH || process.env.API_HASH || "",
-      }, {
+      await client.start({
         phoneNumber: async () => phoneNumber,
         phoneCode: async () => code,
-        password: async () => {
+        password: async (hint) => {
           if (!password) {
-            console.log(`[TelegramUserbotService] Password requested by library but not provided by user`);
-            const err = new Error('SESSION_PASSWORD_NEEDED');
-            throw err;
+            console.log(`[TelegramUserbotService] 2FA Password needed. Hint: ${hint}`);
+            throw new Error('SESSION_PASSWORD_NEEDED');
           }
           return password;
         },
         onError: (err) => {
-          console.error(`[TelegramUserbotService] Library onError callback: ${err.message}`);
-          if (err.message.includes('SESSION_PASSWORD_NEEDED') || err.message.includes('password is empty') || err.message.includes('PASSWORD_HASH_INVALID')) {
-             return; 
-          }
-          throw err;
+          console.error(`[TelegramUserbotService] client.start onError: ${err.message}`);
         }
       });
 
@@ -109,7 +101,9 @@ export class TelegramUserbotService {
       return { success: true };
     } catch (error: any) {
       console.error(`[TelegramUserbotService] Login error catch: ${error.message}`);
-      if (error.message.includes('SESSION_PASSWORD_NEEDED') || error.message.includes('password is empty')) {
+      if (error.message.includes('SESSION_PASSWORD_NEEDED') || 
+          error.message.includes('password is empty') || 
+          error.message.includes('PASSWORD_HASH_INVALID')) {
         return { needs2FA: true };
       }
       throw error;
