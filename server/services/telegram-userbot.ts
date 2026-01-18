@@ -15,11 +15,14 @@ export class TelegramUserbotService {
     }
 
     const settings = await this.storage.getSettings(userId);
-    const apiId = process.env.TG_API_ID || process.env.API_ID;
-    const apiHash = process.env.TG_API_HASH || process.env.API_HASH;
+    const apiId = process.env.TG_API_ID || settings.find(s => s.key === 'tg_api_id')?.value;
+    const apiHash = process.env.TG_API_HASH || settings.find(s => s.key === 'tg_api_hash')?.value;
     const sessionStr = settings.find(s => s.key === 'tg_session')?.value;
 
-    if (!apiId || !apiHash || !sessionStr) return null;
+    if (!apiId || !apiHash || !sessionStr) {
+      console.warn(`[TelegramUserbotService] Missing credentials for user ${userId}: apiId=${!!apiId}, apiHash=${!!apiHash}, session=${!!sessionStr}`);
+      return null;
+    }
 
     const client = new TelegramClient(
       new StringSession(sessionStr),
