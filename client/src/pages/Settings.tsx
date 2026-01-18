@@ -20,7 +20,7 @@ export default function Settings() {
   const [phoneCodeHash, setPhoneCodeHash] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { data: status, refetch: refetchStatus } = useQuery({
+  const { data: status, refetch: refetchStatus } = useQuery<{ connected: boolean }>({
     queryKey: ["/api/telegram/status"],
     enabled: !!user,
   });
