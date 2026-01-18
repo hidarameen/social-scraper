@@ -94,11 +94,16 @@ export class TelegramService {
             chatId = `@${chatId}`;
           }
 
-          if (video || image) {
-            // Userbot media sending implementation
+          if (video) {
             await client.sendMessage(chatId, {
               message: message,
-              file: video || image,
+              file: video,
+              parseMode: 'html'
+            });
+          } else if (image) {
+            await client.sendMessage(chatId, {
+              message: message,
+              file: image,
               parseMode: 'html'
             });
           } else {
