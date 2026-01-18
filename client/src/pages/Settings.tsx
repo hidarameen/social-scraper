@@ -53,6 +53,11 @@ export default function Settings() {
         });
       }
       
+      // Ensure we keep track of values we want to persist in local state
+      if (values.tg_use_userbot) {
+        form.setValue("tg_use_userbot", values.tg_use_userbot);
+      }
+
       // Only reset if we actually have values to avoid resetting to empty defaults
       if (Object.keys(values).length > 0) {
         form.reset({
