@@ -2,6 +2,7 @@ import { IScraper } from "./scraper-manager";
 import { Task } from "@shared/schema";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { chromium } from 'playwright';
 
 export class TwitterScraper implements IScraper {
   private nitterInstances = [
@@ -14,8 +15,75 @@ export class TwitterScraper implements IScraper {
   ];
 
   async scrape(task: Task) {
-    console.log(`Attempting to scrape Twitter: ${task.url}`);
+    console.log(`Attempting to scrape Twitter: ${task.url} using ${task.scrapeMethod} method`);
+
+    if (task.scrapeMethod === 'browser') {
+      return this.scrapeWithBrowser(task);
+    }
     
+    // Default to Nitter/Meta extraction for 'html' or other methods
+    return this.scrapeWithHtml(task);
+  }
+
+  private async scrapeWithBrowser(task: Task) {
+    let browser: any;
+    try {
+      browser = await chromium.launch({ 
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      });
+      const page = await context.newPage();
+      
+      console.log(`[Twitter Browser] Navigating to: ${task.url}`);
+      await page.goto(task.url, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.waitForTimeout(5000); // Wait for JS content
+
+      const posts = await page.evaluate(() => {
+        const results: any[] = [];
+        // X/Twitter uses article tags for tweets
+        const articles = document.querySelectorAll('article[data-testid="tweet"]');
+        
+        articles.forEach((el) => {
+          const textEl = el.querySelector('div[data-testid="tweetText"]');
+          const timeEl = el.querySelector('time');
+          const linkEl = el.querySelector('a[href*="/status/"]');
+          
+          if (textEl && linkEl) {
+            const href = (linkEl as HTMLAnchorElement).href;
+            results.push({
+              id: href.split('/').pop(),
+              text: textEl.textContent || '',
+              url: href,
+              platform: 'twitter',
+              date: timeEl ? timeEl.getAttribute('datetime') : new Date().toISOString()
+            });
+          }
+        });
+        return results;
+      });
+
+      if (posts.length > 0) {
+        return {
+          items: posts.length,
+          message: `Successfully extracted ${posts.length} posts via browser.`,
+          data: posts
+        };
+      }
+
+      console.log("[Twitter Browser] No posts found, falling back to HTML extraction.");
+      return this.scrapeWithHtml(task);
+    } catch (e: any) {
+      console.error(`[Twitter Browser] Error: ${e.message}`);
+      return this.scrapeWithHtml(task);
+    } finally {
+      if (browser) await browser.close();
+    }
+  }
+
+  private async scrapeWithHtml(task: Task) {
     // 1. Try Meta Tag Extraction First (Fastest)
     try {
       const response = await axios.get(task.url, {
