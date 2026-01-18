@@ -73,6 +73,22 @@ export default function Settings() {
       };
 
       await apiRequest("POST", "/api/settings", settingsToSave);
+      // Update local query cache immediately to keep the UI state
+      queryClient.setQueryData(["/api/settings"], (old: any) => {
+        if (Array.isArray(old)) {
+          const newSettings = [...old];
+          Object.entries(settingsToSave).forEach(([key, value]) => {
+            const index = newSettings.findIndex(s => s.key === key);
+            if (index > -1) {
+              newSettings[index] = { ...newSettings[index], value };
+            } else {
+              newSettings.push({ key, value });
+            }
+          });
+          return newSettings;
+        }
+        return { ...old, ...settingsToSave };
+      });
       toast({ title: "Settings saved successfully" });
     } catch (e: any) {
       toast({ title: "Error saving settings", description: e.message, variant: "destructive" });
