@@ -51,12 +51,19 @@ export class TwitterScraper implements IScraper {
           const timeEl = el.querySelector('time');
           const linkEl = el.querySelector('a[href*="/status/"]');
           
+          // Media extraction
+          const imgEl = el.querySelector('div[data-testid="tweetPhoto"] img');
+          const videoEl = el.querySelector('div[data-testid="videoPlayer"] video');
+          const videoSource = videoEl ? (videoEl as HTMLVideoElement).src : null;
+          
           if (textEl && linkEl) {
             const href = (linkEl as HTMLAnchorElement).href;
             results.push({
               id: href.split('/').pop(),
               text: textEl.textContent || '',
               url: href,
+              image: imgEl ? (imgEl as HTMLImageElement).src : undefined,
+              video: videoSource || undefined,
               platform: 'twitter',
               date: timeEl ? timeEl.getAttribute('datetime') : new Date().toISOString()
             });
@@ -99,6 +106,7 @@ export class TwitterScraper implements IScraper {
         const description = $('meta[property="og:description"]').attr('content');
         const title = $('meta[property="og:title"]').attr('content');
         const image = $('meta[property="og:image"]').attr('content');
+        const video = $('meta[property="og:video"]').attr('content');
         
         if (description) {
           return {
@@ -109,6 +117,7 @@ export class TwitterScraper implements IScraper {
               text: description,
               url: task.url,
               image: image,
+              video: video,
               platform: 'twitter',
               accountName: title || 'Twitter User',
               date: new Date().toISOString()
