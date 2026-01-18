@@ -97,12 +97,9 @@ export class TelegramService {
           if (video) {
             try {
               console.log(`[Telegram Userbot] Attempting to send video: ${video} to ${chatId}`);
-              // Use a Buffer or URL object if needed, but GramJS should handle strings. 
-              // However, WEBPAGE_CURL_FAILED usually means Telegram's servers can't reach the URL.
-              // We should attempt to download it locally first if it's a URL, or just use the fallback.
-              await client.sendMessage(chatId, {
-                message: message,
+              await client.sendFile(chatId, {
                 file: video,
+                caption: message,
                 parseMode: 'html'
               });
             } catch (mediaErr: any) {
@@ -115,9 +112,9 @@ export class TelegramService {
           } else if (image) {
             try {
               console.log(`[Telegram Userbot] Attempting to send image: ${image} to ${chatId}`);
-              await client.sendMessage(chatId, {
-                message: message,
+              await client.sendFile(chatId, {
                 file: image,
+                caption: message,
                 parseMode: 'html'
               });
             } catch (mediaErr: any) {
