@@ -95,17 +95,35 @@ export class TelegramService {
           }
 
           if (video) {
-            await client.sendMessage(chatId, {
-              message: message,
-              file: video,
-              parseMode: 'html'
-            });
+            try {
+              console.log(`[Telegram Userbot] Attempting to send video: ${video}`);
+              await client.sendMessage(chatId, {
+                message: message,
+                file: video,
+                parseMode: 'html'
+              });
+            } catch (mediaErr: any) {
+              console.error(`[Telegram Userbot] Video send failed: ${mediaErr.message}. Falling back to text.`);
+              await client.sendMessage(chatId, {
+                message: `${message}\n\n🎬 <b>Video Link:</b> ${video}`,
+                parseMode: 'html'
+              });
+            }
           } else if (image) {
-            await client.sendMessage(chatId, {
-              message: message,
-              file: image,
-              parseMode: 'html'
-            });
+            try {
+              console.log(`[Telegram Userbot] Attempting to send image: ${image}`);
+              await client.sendMessage(chatId, {
+                message: message,
+                file: image,
+                parseMode: 'html'
+              });
+            } catch (mediaErr: any) {
+              console.error(`[Telegram Userbot] Image send failed: ${mediaErr.message}. Falling back to text.`);
+              await client.sendMessage(chatId, {
+                message: `${message}\n\n🖼 <b>Image Link:</b> ${image}`,
+                parseMode: 'html'
+              });
+            }
           } else {
             await client.sendMessage(chatId, { message, parseMode: 'html' });
           }
