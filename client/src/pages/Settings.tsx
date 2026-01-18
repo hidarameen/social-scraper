@@ -47,16 +47,19 @@ export default function Settings() {
         settings.forEach(s => {
           values[s.key] = s.value;
         });
-      } else if (typeof settings === 'object') {
+      } else if (typeof settings === 'object' && settings !== null) {
         Object.entries(settings).forEach(([key, value]) => {
           values[key] = String(value);
         });
       }
       
-      form.reset({
-        ...form.getValues(),
-        ...values
-      });
+      // Only reset if we actually have values to avoid resetting to empty defaults
+      if (Object.keys(values).length > 0) {
+        form.reset({
+          ...form.getValues(),
+          ...values
+        });
+      }
     }
   }, [settings, form]);
 
