@@ -275,6 +275,14 @@ export class TwitterScraper implements IScraper {
         const posts: any[] = [];
 
         $('.timeline-item').each((_, el) => {
+          // 1. Exclude Retweets in Nitter
+          const retweeted = $(el).find('.retweet-header').length > 0;
+          if (retweeted) return;
+
+          // 2. Exclude Replies in Nitter
+          const isReply = $(el).find('.replying-to').length > 0;
+          if (isReply) return;
+
           const text = $(el).find('.tweet-content').text().trim();
           const link = $(el).find('.tweet-link').attr('href');
           const id = link ? link.split('/').pop() : null;
@@ -282,6 +290,9 @@ export class TwitterScraper implements IScraper {
           const video = $(el).find('.attachment.video video').attr('src');
           const date = $(el).find('.tweet-date a').attr('title');
           const accountName = $(el).find('.fullname').text().trim();
+
+          // 3. Exclude replies starting with @ in Nitter
+          if (text.startsWith('@')) return;
 
           if (text && id) {
             posts.push({
