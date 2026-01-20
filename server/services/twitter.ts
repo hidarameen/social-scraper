@@ -154,7 +154,7 @@ export class TwitterScraper implements IScraper {
           const linkEl = el.querySelector('a[href*="/status/"]');
           
           const imgEl = el.querySelector('div[data-testid="tweetPhoto"] img');
-          const videoEl = el.querySelector('div[data-testid="videoPlayer"] video');
+          const videoEl = el.querySelector('div[data-testid="videoPlayer"] video, div[data-testid="videoComponent"] video, [data-testid="tweet"] video');
           const videoSource = videoEl ? (videoEl as HTMLVideoElement).src : null;
           
           if (textEl && linkEl) {
@@ -172,7 +172,7 @@ export class TwitterScraper implements IScraper {
               text: textContent,
               url: href,
               image: imgEl ? (imgEl as HTMLImageElement).src : undefined,
-              video: videoSource || undefined,
+              video: videoSource || (videoEl ? href : undefined), // If we see a video element but no src, use the tweet URL for yt-dlp
               platform: 'twitter',
               date: timeEl ? timeEl.getAttribute('datetime') : new Date().toISOString()
             });
