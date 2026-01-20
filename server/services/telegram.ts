@@ -170,12 +170,19 @@ export class TelegramService {
             try {
               if (video.startsWith('/attached_assets/')) {
                 // If it's a local file already downloaded by scraper
-                const localPath = path.join(process.cwd(), video);
+                const localPath = path.join(process.cwd(), video.startsWith('/') ? video.substring(1) : video);
                 if (fs.existsSync(localPath)) {
                   console.log(`Telegram Service: Using existing local file: ${localPath}`);
                   fs.copyFileSync(localPath, tempFile);
                 } else {
-                  throw new Error(`Local video file not found: ${localPath}`);
+                  // Try without leading slash if still not found
+                  const fallbackPath = path.join(process.cwd(), video.replace(/^\//, ''));
+                  if (fs.existsSync(fallbackPath)) {
+                    console.log(`Telegram Service: Using fallback local file: ${fallbackPath}`);
+                    fs.copyFileSync(fallbackPath, tempFile);
+                  } else {
+                    throw new Error(`Local video file not found: ${localPath} or ${fallbackPath}`);
+                  }
                 }
               } else {
                 // Try to download with best quality mp4
