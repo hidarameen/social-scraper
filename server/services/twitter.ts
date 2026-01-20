@@ -165,6 +165,7 @@ export class TwitterScraper implements IScraper {
           const textEl = el.querySelector('div[data-testid="tweetText"]');
           const timeEl = el.querySelector('time');
           const linkEl = el.querySelector('a[href*="/status/"]');
+          const nameEl = el.querySelector('div[data-testid="User-Name"] span');
           
           const imgEl = el.querySelector('div[data-testid="tweetPhoto"] img');
           const videoEl = el.querySelector('div[data-testid="videoPlayer"] video, div[data-testid="videoComponent"] video, [data-testid="tweet"] video');
@@ -187,6 +188,7 @@ export class TwitterScraper implements IScraper {
               image: imgEl ? (imgEl as HTMLImageElement).src : undefined,
               video: videoSource || (videoEl ? href : undefined), // If we see a video element but no src, use the tweet URL for yt-dlp
               platform: 'twitter',
+              accountName: nameEl ? nameEl.textContent : undefined,
               date: timeEl ? timeEl.getAttribute('datetime') : new Date().toISOString()
             });
           }
@@ -274,6 +276,7 @@ export class TwitterScraper implements IScraper {
           const image = $(el).find('.attachment.image img').attr('src');
           const video = $(el).find('.attachment.video video').attr('src');
           const date = $(el).find('.tweet-date a').attr('title');
+          const accountName = $(el).find('.fullname').text().trim();
 
           if (text && id) {
             posts.push({
@@ -283,6 +286,7 @@ export class TwitterScraper implements IScraper {
               image: image ? `${instance}${image}` : undefined,
               video: video ? `${instance}${video}` : undefined,
               platform: 'twitter',
+              accountName: accountName || undefined,
               date: date || new Date().toISOString()
             });
           }
