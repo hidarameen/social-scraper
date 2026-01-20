@@ -79,10 +79,14 @@ export async function registerRoutes(
   });
 
   app.get("/api/telegram/status", isAuthenticated, async (req: any, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     try {
       const client = await userbotService.getClient(req.user.id);
-      res.json({ connected: !!(client && client.connected) });
+      const isConnected = !!(client && client.connected);
+      console.log(`[Telegram] Status check for user ${req.user.id}: connected=${isConnected}`);
+      res.json({ connected: isConnected });
     } catch (e: any) {
+      console.error(`[Telegram] Status check error: ${e.message}`);
       res.json({ connected: false });
     }
   });

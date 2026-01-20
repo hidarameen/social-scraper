@@ -20,12 +20,17 @@ export default function Settings() {
   const [phoneCodeHash, setPhoneCodeHash] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { data: status, refetch: refetchStatus } = useQuery<{ connected: boolean }>({
+  const { data: status, refetch: refetchStatus, isFetching: isCheckingStatus } = useQuery<{ connected: boolean }>({
     queryKey: ["/api/telegram/status"],
     enabled: !!user,
+    refetchInterval: 5000,
+    staleTime: 0,
+    gcTime: 0,
+    retry: 3,
+    retryDelay: 1000,
   });
 
-  const isConnected = !!status?.connected;
+  const isConnected = status?.connected === true;
 
   const form = useForm({
     defaultValues: {
@@ -53,9 +58,15 @@ export default function Settings() {
         });
       }
       
-      // Ensure we keep track of values we want to persist in local state
+      // Update form values including credentials if present
       if (values.tg_use_userbot) {
         form.setValue("tg_use_userbot", values.tg_use_userbot);
+      }
+      if (values.tg_api_id) {
+        form.setValue("tg_api_id", values.tg_api_id);
+      }
+      if (values.tg_api_hash) {
+        form.setValue("tg_api_hash", values.tg_api_hash);
       }
 
       // Only reset if we actually have values to avoid resetting to empty defaults
@@ -78,6 +89,8 @@ export default function Settings() {
         telegram_bot_token: data.telegram_bot_token,
         default_user_agent: data.default_user_agent,
         tg_use_userbot: data.tg_use_userbot,
+        tg_api_id: data.tg_api_id, // Ensure these are saved
+        tg_api_hash: data.tg_api_hash,
       };
 
       await apiRequest("POST", "/api/settings", settingsToSave);
@@ -170,10 +183,11 @@ export default function Settings() {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      await apiRequest("POST", "/api/settings", { tg_session: "" });
+      await apiRequest("DELETE", "/api/telegram/logout");
+      // Clear local storage or memory if needed, but invalidating queries is best
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/settings"] }),
-        refetchStatus()
+        queryClient.invalidateQueries({ queryKey: ["/api/telegram/status"] }),
       ]);
       toast({ title: "Userbot Logged Out", description: "Telegram session has been cleared." });
       setStep("idle");
@@ -236,6 +250,28 @@ export default function Settings() {
                 </div>
               </div>
               
+              {form.watch("tg_use_userbot") === "true" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">API ID</label>
+                    <Input 
+                      placeholder="Enter API ID" 
+                      {...form.register("tg_api_id")}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">API Hash</label>
+                    <Input 
+                      placeholder="Enter API Hash" 
+                      {...form.register("tg_api_hash")}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground col-span-2">
+                    Enter your Telegram API credentials if not already configured in environment.
+                  </p>
+                </div>
+              )}
+
               {form.watch("tg_use_userbot") === "false" && (
                 <div>
                   <label className="text-sm font-medium mb-2 block">Bot Token</label>
@@ -269,8 +305,11 @@ export default function Settings() {
         <div className="space-y-6">
           <Card className="glass-panel border-primary/20">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Phone className="h-5 w-5" /> Telegram Userbot (gramJS)
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Phone className="h-5 w-5" /> Telegram Userbot (gramJS)
+                </div>
+                {isCheckingStatus && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
               </CardTitle>
               <CardDescription>
                 {isConnected 

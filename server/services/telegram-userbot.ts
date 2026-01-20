@@ -15,12 +15,14 @@ export class TelegramUserbotService {
     }
 
     const settings = await this.storage.getSettings(userId);
-    const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.TG_API_ID;
-    const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.TG_API_HASH;
+    const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.API_ID || process.env.TG_API_ID;
+    const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.API_HASH || process.env.TG_API_HASH;
     const sessionStr = settings.find(s => s.key === 'tg_session')?.value;
 
     if (!apiId || !apiHash || !sessionStr) {
-      console.warn(`[TelegramUserbotService] Missing credentials for user ${userId}: apiId=${!!apiId}, apiHash=${!!apiHash}, session=${!!sessionStr}`);
+      if (sessionStr) {
+        console.warn(`[TelegramUserbotService] Session exists but missing API credentials for user ${userId}`);
+      }
       return null;
     }
 
@@ -29,16 +31,22 @@ export class TelegramUserbotService {
         new StringSession(sessionStr),
         parseInt(apiId),
         apiHash,
-        { connectionRetries: 5 }
+        { 
+          connectionRetries: 5,
+          useWSS: false,
+          autoReconnect: true
+        }
       );
 
+      console.log(`[TelegramUserbotService] Connecting to Telegram...`);
       await client.connect();
       
       // Check if the session is actually valid
       try {
-        await client.getMe();
+        const me = await client.getMe();
+        console.log(`[TelegramUserbotService] Logged in as: ${me.username || me.id}`);
       } catch (sessionErr: any) {
-        console.error(`[TelegramUserbotService] Session invalid for user ${userId}: ${sessionErr.message}`);
+        console.error(`[TelegramUserbotService] Session invalid or expired for user ${userId}: ${sessionErr.message}`);
         this.clients.delete(userId);
         return null;
       }
@@ -136,10 +144,12 @@ export class TelegramUserbotService {
       console.log(`[TelegramUserbotService] Login successful. Saving session...`);
       const sessionStr = (client.session as StringSession).save();
       
-      // Get API credentials to save them too if they were from env vars
+      // Get API credentials to save them too
       const settings = await this.storage.getSettings(userId);
-      const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.TG_API_ID || process.env.API_ID;
-      const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.TG_API_HASH || process.env.API_HASH;
+      const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.API_ID || process.env.TG_API_ID;
+      const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.API_HASH || process.env.TG_API_HASH;
+
+      console.log(`[TelegramUserbotService] Saving credentials: apiId=${!!apiId}, apiHash=${!!apiHash}`);
 
       await Promise.all([
         this.storage.upsertSetting({
