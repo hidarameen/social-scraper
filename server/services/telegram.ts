@@ -234,7 +234,9 @@ export class TelegramService {
                   const MAX_SIZE = 50 * 1024 * 1024;
                   if (stats.size > MAX_SIZE) {
                     console.log(`Telegram Service: Video too large (${stats.size} bytes), sending link instead`);
-                    await bot.sendMessage(chatId, `${message}\n\n🎬 <b>Video Link (File too large):</b> ${video}`, { parse_mode: 'HTML' });
+                    // If video is too large for bot API, try to send it as a document (sometimes works up to 2GB but Bot API is 50MB)
+                    // For now, we stick to the limit but provide a clearer message
+                    await bot.sendMessage(chatId, `${message}\n\n🎬 <b>Video Link (File too large for Telegram Bot API - 50MB limit):</b> ${video}`, { parse_mode: 'HTML' });
                   } else {
                     await bot.sendVideo(chatId, tempFile, options, { filename: path.basename(tempFile), contentType: 'video/mp4' });
                     console.log(`Telegram Service: Video sent successfully to ${chatId}`);
