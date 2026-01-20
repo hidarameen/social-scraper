@@ -126,7 +126,13 @@ export class TwitterScraper implements IScraper {
       const page = await context.newPage();
       
       console.log(`[Twitter Browser] Navigating to: ${task.url}`);
-      await page.goto(task.url, { waitUntil: 'networkidle', timeout: 60000 });
+      try {
+        await page.goto(task.url, { waitUntil: 'commit', timeout: 30000 });
+        await page.waitForLoadState('domcontentloaded', { timeout: 30000 });
+      } catch (gotoErr) {
+        console.warn(`[Twitter Browser] Navigation warning: ${gotoErr instanceof Error ? gotoErr.message : String(gotoErr)}`);
+      }
+      
       await page.waitForTimeout(5000); // Wait for JS content
 
       const posts = await page.evaluate(() => {
