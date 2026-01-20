@@ -15,8 +15,8 @@ export class TelegramUserbotService {
     }
 
     const settings = await this.storage.getSettings(userId);
-    const apiId = process.env.TG_API_ID || settings.find(s => s.key === 'tg_api_id')?.value;
-    const apiHash = process.env.TG_API_HASH || settings.find(s => s.key === 'tg_api_hash')?.value;
+    const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.TG_API_ID;
+    const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.TG_API_HASH;
     const sessionStr = settings.find(s => s.key === 'tg_session')?.value;
 
     if (!apiId || !apiHash || !sessionStr) {
@@ -38,8 +38,9 @@ export class TelegramUserbotService {
 
   async startLogin(userId: number, phoneNumber: string) {
     console.log(`[TelegramUserbotService] startLogin for user ${userId}, phone ${phoneNumber}`);
-    const apiId = process.env.TG_API_ID || process.env.API_ID;
-    const apiHash = process.env.TG_API_HASH || process.env.API_HASH;
+    const settings = await this.storage.getSettings(userId);
+    const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.TG_API_ID || process.env.API_ID;
+    const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.TG_API_HASH || process.env.API_HASH;
 
     if (!apiId || !apiHash) {
       console.error(`[TelegramUserbotService] Missing API ID or API Hash in environment variables`);
