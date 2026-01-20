@@ -3,6 +3,7 @@ import { Task } from "@shared/schema";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { chromium } from 'playwright';
+import { storage } from "../storage";
 
 export class TwitterScraper implements IScraper {
   private nitterInstances = [
@@ -28,6 +29,9 @@ export class TwitterScraper implements IScraper {
   private async scrapeWithBrowser(task: Task) {
     let browser: any;
     try {
+      const cookiesList = await storage.getCookies(task.userId);
+      const twitterCookie = cookiesList.find(c => c.platform === 'twitter');
+      
       browser = await chromium.launch({ 
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -35,32 +39,92 @@ export class TwitterScraper implements IScraper {
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       });
+
+      if (twitterCookie) {
+        console.log(`[Twitter Browser] Applying cookies for task ${task.id}`);
+        try {
+          // Check if it's Netscape format or JSON
+          let cookies: any[] = [];
+          if (twitterCookie.value.includes('# Netscape HTTP Cookie File')) {
+            // Simple Netscape parser
+            const lines = twitterCookie.value.split('\n');
+            for (const line of lines) {
+              if (!line.trim() || line.startsWith('#')) continue;
+              const parts = line.split('\t');
+              if (parts.length >= 7) {
+                cookies.push({
+                  name: parts[5],
+                  value: parts[6].replace(/\r/g, ''),
+                  domain: parts[0],
+                  path: parts[2],
+                  expires: parseInt(parts[4]),
+                  secure: parts[3] === 'TRUE'
+                });
+              }
+            }
+          } else {
+            const cookieData = JSON.parse(twitterCookie.value);
+            cookies = Array.isArray(cookieData) ? cookieData : [cookieData];
+          }
+
+          if (cookies.length > 0) {
+            await context.addCookies(cookies.map((c: any) => ({
+              name: c.name,
+              value: c.value,
+              domain: c.domain.startsWith('.') ? c.domain : `.${c.domain}`,
+              path: c.path || '/',
+              expires: c.expires || -1,
+              httpOnly: c.httpOnly || false,
+              secure: c.secure !== undefined ? c.secure : true,
+              sameSite: c.sameSite || 'Lax'
+            })));
+          }
+        } catch (e) {
+          console.error(`[Twitter Browser] Failed to parse cookies: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
       const page = await context.newPage();
       
       console.log(`[Twitter Browser] Navigating to: ${task.url}`);
-      await page.goto(task.url, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.goto(task.url, { waitUntil: 'networkidle', timeout: 60000 });
       await page.waitForTimeout(5000); // Wait for JS content
 
       const posts = await page.evaluate(() => {
         const results: any[] = [];
-        // X/Twitter uses article tags for tweets
         const articles = document.querySelectorAll('article[data-testid="tweet"]');
         
         articles.forEach((el) => {
+          // 1. Exclude Retweets (Social context like "Retweeted by")
+          const socialContext = el.querySelector('div[data-testid="socialContext"]');
+          if (socialContext) return;
+
+          // 2. Exclude Replies
+          // Check for "Replying to" span
+          const isReply = Array.from(el.querySelectorAll('div[dir="ltr"] span')).some(s => s.textContent?.includes('Replying to'));
+          if (isReply) return;
+
           const textEl = el.querySelector('div[data-testid="tweetText"]');
           const timeEl = el.querySelector('time');
           const linkEl = el.querySelector('a[href*="/status/"]');
           
-          // Media extraction
           const imgEl = el.querySelector('div[data-testid="tweetPhoto"] img');
           const videoEl = el.querySelector('div[data-testid="videoPlayer"] video');
           const videoSource = videoEl ? (videoEl as HTMLVideoElement).src : null;
           
           if (textEl && linkEl) {
+            const textContent = textEl.textContent || '';
+            // 3. Exclude replies to other accounts (@username)
+            if (textContent.trim().startsWith('@')) return;
+
             const href = (linkEl as HTMLAnchorElement).href;
+            if (!href.includes('/status/')) return;
+            
+            const tweetId = href.split('/status/')[1]?.split('?')[0]; 
+            
             results.push({
-              id: href.split('/').pop(),
-              text: textEl.textContent || '',
+              id: tweetId,
+              text: textContent,
               url: href,
               image: imgEl ? (imgEl as HTMLImageElement).src : undefined,
               video: videoSource || undefined,

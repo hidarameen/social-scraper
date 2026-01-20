@@ -155,8 +155,9 @@ export class TelegramService {
         try {
           console.log(`Telegram Service: Processing video URL: ${video}`);
           const isFacebookVideo = video.includes('facebook.com') || video.includes('fb.watch') || video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/');
+          const isTwitterVideo = video.includes('twitter.com') || video.includes('x.com') || video.includes('twimg.com');
           
-          if (isFacebookVideo) {
+          if (isFacebookVideo || isTwitterVideo) {
             console.log(`Telegram Service: Downloading video from: ${video}`);
             // Use a unique ID based on the video URL hash to avoid collisions and track uniquely
             const urlHash = createHash('md5').update(video).digest('hex').substring(0, 8);

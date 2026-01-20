@@ -160,20 +160,19 @@ export class ScraperManager {
       
       // Get the last sent post ID for this task to stop processing older ones
       const lastPostId = task.lastPostId;
-      let foundLastSeen = false;
+
+      // Log lastPostId for debugging
+      console.log(`[ScraperManager] Task ${task.id} lastPostId from DB: "${lastPostId}"`);
 
       for (const post of uniqueBatch) {
         // Log the post we are checking
-        console.log(`[ScraperManager] Checking post: ${post.normalizedId}`);
+        console.log(`[ScraperManager] Checking post: "${post.normalizedId}"`);
 
         // If we encountered the last seen post ID, we can stop adding "new" posts
         // because usually posts are ordered by date (newest first)
-        if (lastPostId && post.normalizedId === lastPostId) {
-          console.log(`[ScraperManager] Reached lastPostId: ${lastPostId}. Stopping search for new posts.`);
-          foundLastSeen = true;
-          break;
-        }
-
+        // CRITICAL FIX: For Twitter, we should continue checking the batch because scrolling might bring older posts first
+        // or the order might be non-linear. Let's just use isPostSent check for each.
+        
         const alreadySent = await this.storage.isPostSent(task.id, post.normalizedId);
         if (!alreadySent) {
           console.log(`[ScraperManager] Post ${post.normalizedId} is NEW.`);
