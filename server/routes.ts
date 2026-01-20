@@ -99,6 +99,7 @@ export async function registerRoutes(
 
   app.post("/api/settings", isAuthenticated, async (req: any, res) => {
     const entries = Object.entries(req.body);
+    console.log(`[Settings] Saving ${entries.length} keys for user ${req.user.id}: ${Object.keys(req.body).join(', ')}`);
     for (const [key, value] of entries) {
       await storage.upsertSetting({
         userId: req.user.id,
