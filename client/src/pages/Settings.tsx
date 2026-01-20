@@ -58,30 +58,18 @@ export default function Settings() {
         });
       }
       
-      // Update form values including credentials if present
-      if (values.tg_use_userbot !== undefined) {
-        form.setValue("tg_use_userbot", values.tg_use_userbot);
-      }
-      if (values.tg_api_id) {
-        form.setValue("tg_api_id", values.tg_api_id);
-      }
-      if (values.tg_api_hash) {
-        form.setValue("tg_api_hash", values.tg_api_hash);
-      }
+      console.log("[Settings] Loaded from database:", values);
 
-      // Important: After individual setValue calls, we MUST still reset or update the form state
-      // but ensure we don't overwrite with empty values if settings were just loaded
-      if (Object.keys(values).length > 0) {
-        // We use a functional reset to preserve values not in the database but currently in the form (like phoneNumber during login)
-        const currentValues = form.getValues();
-        form.reset({
-          ...currentValues,
+      // We only reset when we have data and only if we are in the "idle" step
+      // to avoid resetting form while user is typing code or password
+      if (Object.keys(values).length > 0 && step === "idle") {
+        form.reset((current) => ({
+          ...current,
           ...values
-        });
+        }));
       }
-      console.log("[Settings] Form state updated from database:", values);
     }
-  }, [settings, form.reset]); // Only depend on settings and reset to avoid loops
+  }, [settings, form.reset, step]);
 
   const onSubmit = async (data: Record<string, string>) => {
     if (!user) return;

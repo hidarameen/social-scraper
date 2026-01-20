@@ -98,16 +98,24 @@ export async function registerRoutes(
   });
 
   app.post("/api/settings", isAuthenticated, async (req: any, res) => {
-    const entries = Object.entries(req.body);
-    console.log(`[Settings] Saving ${entries.length} keys for user ${req.user.id}: ${Object.keys(req.body).join(', ')}`);
-    for (const [key, value] of entries) {
-      await storage.upsertSetting({
-        userId: req.user.id,
-        key,
-        value: String(value),
-      });
+    try {
+      const entries = Object.entries(req.body);
+      console.log(`[Settings] Bulk saving ${entries.length} keys for user ${req.user.id}: ${Object.keys(req.body).join(', ')}`);
+      
+      // Use a single transaction for atomicity if needed, but here parallel upserts are fine
+      await Promise.all(entries.map(([key, value]) => 
+        storage.upsertSetting({
+          userId: req.user.id,
+          key,
+          value: String(value),
+        })
+      ));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error(`[Settings] Error saving settings: ${error.message}`);
+      res.status(500).json({ message: "Failed to save settings" });
     }
-    res.json({ success: true });
   });
 
   // Initialize Scraper Manager

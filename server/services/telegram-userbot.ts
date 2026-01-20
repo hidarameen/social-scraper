@@ -11,7 +11,17 @@ export class TelegramUserbotService {
   async getClient(userId: number): Promise<TelegramClient | null> {
     if (this.clients.has(userId)) {
       const existingClient = this.clients.get(userId)!;
-      if (existingClient.connected) return existingClient;
+      // Connection might be lost but client object still exists
+      if (existingClient.connected) {
+        return existingClient;
+      }
+      // If not connected, try to connect again
+      try {
+        await existingClient.connect();
+        if (existingClient.connected) return existingClient;
+      } catch (e) {
+        console.error(`[TelegramUserbotService] Failed to reconnect existing client for user ${userId}`);
+      }
     }
 
     const settings = await this.storage.getSettings(userId);
