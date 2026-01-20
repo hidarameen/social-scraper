@@ -4,6 +4,12 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { chromium } from 'playwright';
 import { storage } from "../storage";
+import { exec } from "child_process";
+import { promisify } from "util";
+import path from "path";
+import fs from "fs/promises";
+
+const execAsync = promisify(exec);
 
 export class TwitterScraper implements IScraper {
   private nitterInstances = [
@@ -15,15 +21,48 @@ export class TwitterScraper implements IScraper {
     'https://nitter.moomoo.me'
   ];
 
+  private async downloadVideo(videoUrl: string): Promise<string | undefined> {
+    try {
+      const outputDir = path.join(process.cwd(), 'attached_assets', 'downloads');
+      await fs.mkdir(outputDir, { recursive: true });
+      
+      const fileName = `twitter_${Date.now()}.mp4`;
+      const outputPath = path.join(outputDir, fileName);
+      
+      console.log(`[Twitter Video] Downloading: ${videoUrl}`);
+      // Use yt-dlp to download the video. We use -f 'bestvideo+bestaudio/best' to get quality
+      // and --merge-output-format mp4 to ensure it's a standard format.
+      await execAsync(`yt-dlp -f "best" -o "${outputPath}" "${videoUrl}"`);
+      
+      // Return the public path that can be used by the frontend
+      // In Replit, attached_assets is usually served or aliased
+      return `/attached_assets/downloads/${fileName}`;
+    } catch (error) {
+      console.error(`[Twitter Video] Download failed: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+
   async scrape(task: Task) {
     console.log(`Attempting to scrape Twitter: ${task.url} using ${task.scrapeMethod} method`);
 
-    if (task.scrapeMethod === 'browser') {
-      return this.scrapeWithBrowser(task);
+    const result = await (task.scrapeMethod === 'browser' 
+      ? this.scrapeWithBrowser(task) 
+      : this.scrapeWithHtml(task));
+
+    // After scraping, if we found video URLs, try to download them
+    if (result && result.data && result.data.length > 0) {
+      for (const item of result.data) {
+        if (item.video && (item.video.startsWith('http') || item.video.includes('twitter.com') || item.video.includes('x.com'))) {
+          const downloadedUrl = await this.downloadVideo(item.url || item.video);
+          if (downloadedUrl) {
+            item.video = downloadedUrl;
+          }
+        }
+      }
     }
     
-    // Default to Nitter/Meta extraction for 'html' or other methods
-    return this.scrapeWithHtml(task);
+    return result;
   }
 
   private async scrapeWithBrowser(task: Task) {
