@@ -24,16 +24,31 @@ export class TelegramUserbotService {
       return null;
     }
 
-    const client = new TelegramClient(
-      new StringSession(sessionStr),
-      parseInt(apiId),
-      apiHash,
-      { connectionRetries: 5 }
-    );
+    try {
+      const client = new TelegramClient(
+        new StringSession(sessionStr),
+        parseInt(apiId),
+        apiHash,
+        { connectionRetries: 5 }
+      );
 
-    await client.connect();
-    this.clients.set(userId, client);
-    return client;
+      await client.connect();
+      
+      // Check if the session is actually valid
+      try {
+        await client.getMe();
+      } catch (sessionErr: any) {
+        console.error(`[TelegramUserbotService] Session invalid for user ${userId}: ${sessionErr.message}`);
+        this.clients.delete(userId);
+        return null;
+      }
+
+      this.clients.set(userId, client);
+      return client;
+    } catch (error: any) {
+      console.error(`[TelegramUserbotService] Connection error for user ${userId}: ${error.message}`);
+      return null;
+    }
   }
 
   async startLogin(userId: number, phoneNumber: string) {
@@ -120,11 +135,29 @@ export class TelegramUserbotService {
 
       console.log(`[TelegramUserbotService] Login successful. Saving session...`);
       const sessionStr = (client.session as StringSession).save();
-      await this.storage.upsertSetting({
-        userId,
-        key: 'tg_session',
-        value: sessionStr
-      });
+      
+      // Get API credentials to save them too if they were from env vars
+      const settings = await this.storage.getSettings(userId);
+      const apiId = settings.find(s => s.key === 'tg_api_id')?.value || process.env.TG_API_ID || process.env.API_ID;
+      const apiHash = settings.find(s => s.key === 'tg_api_hash')?.value || process.env.TG_API_HASH || process.env.API_HASH;
+
+      await Promise.all([
+        this.storage.upsertSetting({
+          userId,
+          key: 'tg_session',
+          value: sessionStr
+        }),
+        apiId ? this.storage.upsertSetting({
+          userId,
+          key: 'tg_api_id',
+          value: apiId
+        }) : Promise.resolve(),
+        apiHash ? this.storage.upsertSetting({
+          userId,
+          key: 'tg_api_hash',
+          value: apiHash
+        }) : Promise.resolve()
+      ]);
 
       return { success: true };
     } catch (error: any) {
