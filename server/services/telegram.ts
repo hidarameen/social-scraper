@@ -155,29 +155,40 @@ export class TelegramService {
         try {
           console.log(`Telegram Service: Processing video URL: ${video}`);
           const isFacebookVideo = video.includes('facebook.com') || video.includes('fb.watch') || video.includes('/videos/') || video.includes('/watch/') || video.includes('/reel/');
-          const isTwitterVideo = video.includes('twitter.com') || video.includes('x.com') || video.includes('twimg.com');
+          const isTwitterVideo = video.includes('twitter.com') || video.includes('x.com') || video.includes('twimg.com') || video.includes('attached_assets/downloads');
           
           if (isFacebookVideo || isTwitterVideo) {
-            console.log(`Telegram Service: Downloading video from: ${video}`);
+            console.log(`Telegram Service: Processing video: ${video}`);
             // Use a unique ID based on the video URL hash to avoid collisions and track uniquely
             const urlHash = createHash('md5').update(video).digest('hex').substring(0, 8);
             const uniqueId = `${Date.now()}_${urlHash}`;
-            const tempFile = path.join("/tmp", `fb_video_${uniqueId}.mp4`);
-            const thumbFile = path.join("/tmp", `fb_thumb_${uniqueId}.jpg`);
+            const tempFile = path.join("/tmp", `vid_${uniqueId}.mp4`);
+            const thumbFile = path.join("/tmp", `thumb_${uniqueId}.jpg`);
             
             console.log(`Telegram Service: Target temp file: ${tempFile}`);
             
             try {
-              // Try to download with best quality mp4
-              await youtubedl(video, {
-                output: tempFile,
-                noCheckCertificates: true,
-                format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                recodeVideo: 'mp4',
-                addHeader: [
-                  'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                ]
-              });
+              if (video.startsWith('/attached_assets/')) {
+                // If it's a local file already downloaded by scraper
+                const localPath = path.join(process.cwd(), video);
+                if (fs.existsSync(localPath)) {
+                  console.log(`Telegram Service: Using existing local file: ${localPath}`);
+                  fs.copyFileSync(localPath, tempFile);
+                } else {
+                  throw new Error(`Local video file not found: ${localPath}`);
+                }
+              } else {
+                // Try to download with best quality mp4
+                await youtubedl(video, {
+                  output: tempFile,
+                  noCheckCertificates: true,
+                  format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                  recodeVideo: 'mp4',
+                  addHeader: [
+                    'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  ]
+                });
+              }
 
               if (fs.existsSync(tempFile)) {
                 const stats = fs.statSync(tempFile);

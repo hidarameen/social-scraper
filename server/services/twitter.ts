@@ -26,6 +26,19 @@ export class TwitterScraper implements IScraper {
       const outputDir = path.join(process.cwd(), 'attached_assets', 'downloads');
       await fs.mkdir(outputDir, { recursive: true });
       
+      // Cleanup old files (older than 1 hour)
+      try {
+        const files = await fs.readdir(outputDir);
+        const now = Date.now();
+        for (const file of files) {
+          const filePath = path.join(outputDir, file);
+          const stats = await fs.stat(filePath);
+          if (now - stats.mtimeMs > 3600000) { // 1 hour
+            await fs.unlink(filePath).catch(() => {});
+          }
+        }
+      } catch (e) {}
+
       const fileName = `twitter_${Date.now()}.mp4`;
       const outputPath = path.join(outputDir, fileName);
       
