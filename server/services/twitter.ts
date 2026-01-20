@@ -70,6 +70,11 @@ export class TwitterScraper implements IScraper {
           const downloadedUrl = await this.downloadVideo(item.url || item.video);
           if (downloadedUrl) {
             item.video = downloadedUrl;
+            // Mark for deletion after processing in TelegramService
+            // The actual file is in attached_assets/downloads/
+            // Note: TelegramService copies this to /tmp and then deletes the /tmp copy
+            // Here we just let the 1-hour cleanup handle the attached_assets version
+            // for safety (to allow retries if needed)
           }
         }
       }
