@@ -149,6 +149,12 @@ export class DatabaseStorage implements IStorage {
       .delete(settings)
       .where(and(eq(settings.userId, userId), eq(settings.key, key)));
   }
+
+  // New Website Scraper Methods
+  async getWebsiteTasks(userId: number): Promise<Task[]> {
+    return await db.select().from(tasks).where(and(eq(tasks.userId, userId), eq(tasks.platform, "website")));
+  }
+
   // Sent Posts
   async isPostSent(taskId: number, postId: string): Promise<boolean> {
     const [sent] = await db.select().from(sentPosts).where(and(eq(sentPosts.taskId, taskId), eq(sentPosts.postId, postId)));
