@@ -34,6 +34,29 @@ export class BrowserService {
       }, url);
 
       // Handle cookie consent banners and overlays
+      // We will hide them by default for a clean view, but we'll also try to auto-accept
+      // to avoid persistent blocking elements
+      await page.evaluate(async () => {
+        const acceptButtons = [
+          'accept', 'agree', 'allow', 'consent', 'السماح', 'موافق', 'قبول',
+          'accept all', 'allow all', 'السماح للكل'
+        ];
+        
+        const findAndClick = () => {
+          const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+          for (const btn of buttons) {
+            const text = btn.textContent?.toLowerCase().trim();
+            if (text && acceptButtons.some(b => text.includes(b))) {
+              (btn as HTMLElement).click();
+              return true;
+            }
+          }
+          return false;
+        };
+
+        findAndClick();
+      });
+
       const selectorsToHide = [
         '#onetrust-consent-sdk',
         '.onetrust-pc-dark-filter',
