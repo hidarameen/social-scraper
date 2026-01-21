@@ -8,8 +8,8 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
 });
 
-export const platforms = ["facebook", "twitter", "instagram", "youtube", "tiktok"] as const;
-export const scrapeMethods = ["api", "html", "browser"] as const;
+export const platforms = ["facebook", "twitter", "instagram", "youtube", "tiktok", "website"] as const;
+export const scrapeMethods = ["api", "html", "browser", "visual"] as const;
 
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
@@ -32,6 +32,13 @@ export const tasks = pgTable("tasks", {
   includeImages: boolean("include_images").default(true),
   includeVideos: boolean("include_videos").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  // New fields for visual scraping
+  selectorTitle: text("selector_title"),
+  selectorContent: text("selector_content"),
+  selectorImage: text("selector_image"),
+  selectorLink: text("selector_link"),
+  useProxy: boolean("use_proxy").default(false),
+  userAgent: text("user_agent"),
 });
 
 export const logs = pgTable("logs", {
