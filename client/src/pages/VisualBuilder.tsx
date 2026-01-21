@@ -112,7 +112,7 @@ export default function VisualBuilder() {
                     value={url} 
                     onChange={(e) => setUrl(e.target.value)}
                   />
-                  <Button onClick={handleLoadUrl} disabled={loading}>
+                  <Button onClick={() => handleLoadUrl()} disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
                   </Button>
                 </div>
