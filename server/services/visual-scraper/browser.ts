@@ -24,7 +24,9 @@ export class BrowserService {
     const page = await context.newPage();
     
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      // Wait for a bit to let dynamic content load without waiting for every single network request
+      await page.waitForTimeout(5000);
       const content = await page.content();
       return content;
     } finally {
@@ -40,17 +42,21 @@ export class BrowserService {
     const page = await context.newPage();
     
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.waitForTimeout(5000);
       
       const results = await page.evaluate((sel) => {
         const elements = document.querySelectorAll(sel.title);
-        return Array.from(elements).map(el => ({
-          title: el.textContent?.trim(),
-          content: sel.content ? document.querySelector(sel.content)?.textContent?.trim() : "",
-          image: sel.image ? (document.querySelector(sel.image) as HTMLImageElement)?.src : "",
-          link: sel.link ? (document.querySelector(sel.link) as HTMLAnchorElement)?.href : (el.closest('a')?.href || ""),
-          timestamp: new Date().toISOString()
-        }));
+        return Array.from(elements).map(el => {
+          const container = el.parentElement; // Try to find container for better context
+          return {
+            title: el.textContent?.trim(),
+            content: sel.content ? (container?.querySelector(sel.content) || document.querySelector(sel.content))?.textContent?.trim() : "",
+            image: sel.image ? (container?.querySelector(sel.image) as HTMLImageElement || document.querySelector(sel.image) as HTMLImageElement)?.src : "",
+            link: sel.link ? (container?.querySelector(sel.link) as HTMLAnchorElement || document.querySelector(sel.link) as HTMLAnchorElement)?.href : (el.closest('a')?.href || ""),
+            timestamp: new Date().toISOString()
+          };
+        });
       }, selectors);
 
       return results;
