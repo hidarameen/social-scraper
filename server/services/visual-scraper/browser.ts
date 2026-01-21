@@ -50,7 +50,7 @@ export class BrowserService {
             const text = btn.textContent ? btn.textContent.toLowerCase().trim() : "";
             if (text && acceptButtons.some(function(b) { return text === b || text.indexOf(b) !== -1; })) {
               try {
-                (btn as HTMLElement).click();
+                btn.click();
                 clicked = true;
               } catch(e) {}
             }
