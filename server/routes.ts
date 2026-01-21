@@ -33,6 +33,7 @@ async function seedDatabase(userId: number) {
 }
 
 import { TelegramUserbotService } from "./services/telegram-userbot";
+import { PickerService } from "./services/visual-scraper/picker";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -42,7 +43,7 @@ export async function registerRoutes(
   setupAuth(app);
 
   const userbotService = new TelegramUserbotService(storage);
-  const pickerService = new (require("./services/visual-scraper/picker").PickerService)();
+  const pickerService = new PickerService();
 
   app.post("/api/visual-proxy", isAuthenticated, async (req: any, res) => {
     const { url } = req.body;
