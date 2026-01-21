@@ -42,6 +42,17 @@ export async function registerRoutes(
   setupAuth(app);
 
   const userbotService = new TelegramUserbotService(storage);
+  const pickerService = new (require("./services/visual-scraper/picker").PickerService)();
+
+  app.post("/api/visual-proxy", isAuthenticated, async (req: any, res) => {
+    const { url } = req.body;
+    try {
+      const content = await pickerService.getProxyContent(url);
+      res.json({ content });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
 
   app.post("/api/telegram/login/start", isAuthenticated, async (req: any, res) => {
     const { phoneNumber } = req.body;

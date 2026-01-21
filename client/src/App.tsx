@@ -14,6 +14,7 @@ import Logs from "@/pages/Logs";
 import Cookies from "@/pages/Cookies";
 import Proxies from "@/pages/Proxies";
 import Settings from "@/pages/Settings";
+import VisualBuilder from "@/pages/VisualBuilder";
 import AuthPage from "@/pages/auth-page";
 import NotFound from "@/pages/not-found";
 
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/cookies" component={() => <ProtectedRoute component={Cookies} />} />
       <Route path="/proxies" component={() => <ProtectedRoute component={Proxies} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={Settings} />} />
+      <Route path="/visual-builder" component={() => <ProtectedRoute component={VisualBuilder} />} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>

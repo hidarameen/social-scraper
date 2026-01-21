@@ -23,6 +23,7 @@ export function Sidebar() {
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/visual-builder", label: "Visual Builder", icon: Globe2 },
     { href: "/tasks", label: "Scraping Tasks", icon: ListTodo },
     { href: "/logs", label: "Execution Logs", icon: ScrollText },
     { href: "/cookies", label: "Platform Cookies", icon: Cookie },
