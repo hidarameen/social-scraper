@@ -25,7 +25,49 @@ export class BrowserService {
     
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-      // Wait for a bit to let dynamic content load without waiting for every single network request
+      
+      // Inject base URL to help resolving relative paths in the proxy
+      await page.evaluate((baseUrl) => {
+        const base = document.createElement('base');
+        base.href = baseUrl;
+        document.head.prepend(base);
+      }, url);
+
+      // Handle cookie consent banners and overlays
+      const selectorsToHide = [
+        '#onetrust-consent-sdk',
+        '.onetrust-pc-dark-filter',
+        '[id*="consent"]',
+        '[class*="consent"]',
+        '[id*="cookie"]',
+        '[class*="cookie"]',
+        '[id*="modal"]',
+        '[class*="modal"]',
+        '[id*="overlay"]',
+        '[class*="overlay"]'
+      ];
+      
+      await page.evaluate((selectors) => {
+        selectors.forEach(sel => {
+          const elements = document.querySelectorAll(sel);
+          elements.forEach(el => {
+            (el as HTMLElement).style.display = 'none';
+            (el as HTMLElement).style.pointerEvents = 'none';
+          });
+        });
+        // Reset body overflow if hidden by a modal
+        document.body.style.overflow = 'auto';
+        document.body.style.position = 'static';
+        
+        // Fix relative images and links if needed (though <base> tag usually handles this)
+        // This is a backup for elements that might not respect <base>
+        document.querySelectorAll('img[src^="/"]').forEach(img => {
+          const src = img.getAttribute('src');
+          if (src) img.setAttribute('src', new URL(src, window.location.href).href);
+        });
+      }, selectorsToHide);
+
+      // Wait for a bit to let dynamic content load
       await page.waitForTimeout(5000);
       const content = await page.content();
       return content;

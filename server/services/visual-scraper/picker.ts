@@ -9,30 +9,70 @@ export class PickerService {
 
   async getProxyContent(url: string) {
     const content = await this.browserService.getPageContent(url);
-    // Inject scripts for element selection
+    // Inject scripts for element selection and style improvements
     const injectedScript = `
+      <style>
+        /* Force pointer events on body for selection but allow clicking through hidden overlays */
+        body { pointer-events: auto !important; }
+        /* Highlighting for hover */
+        .visual-scraper-hover {
+          outline: 3px solid #3b82f6 !important;
+          outline-offset: -3px;
+          background-color: rgba(59, 130, 246, 0.2) !important;
+          cursor: crosshair !important;
+          transition: all 0.1s ease-in-out;
+        }
+        /* Ensure the base tag doesn't break our picker UI if we had any */
+      </style>
       <script>
         (function() {
           let selectedElement = null;
           let mode = 'idle';
 
+          // Hide overlays that might block selection in the picker
+          const hideOverlays = () => {
+            const selectors = [
+              '#onetrust-consent-sdk', 
+              '.onetrust-pc-dark-filter', 
+              '[id*="cookie"]', 
+              '[class*="cookie"]',
+              '[class*="Overlay"]',
+              '[id*="Overlay"]'
+            ];
+            selectors.forEach(s => {
+              document.querySelectorAll(s).forEach(el => {
+                el.style.visibility = 'hidden';
+                el.style.opacity = '0';
+                el.style.pointerEvents = 'none';
+              });
+            });
+            document.body.style.overflow = 'auto';
+            document.body.style.position = 'static';
+          };
+
           window.addEventListener('message', (event) => {
             if (event.data.type === 'SET_MODE') {
               mode = event.data.mode;
               document.body.style.cursor = mode === 'select' ? 'crosshair' : 'default';
+              if (mode === 'select') {
+                hideOverlays();
+                // Periodically hide overlays in case they reappear
+                const interval = setInterval(() => {
+                  if (mode !== 'select') clearInterval(interval);
+                  hideOverlays();
+                }, 2000);
+              }
             }
           });
 
           document.addEventListener('mouseover', (e) => {
             if (mode !== 'select') return;
-            e.target.style.outline = '2px solid rgba(59, 130, 246, 0.5)';
-            e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            e.target.classList.add('visual-scraper-hover');
           });
 
           document.addEventListener('mouseout', (e) => {
             if (mode !== 'select') return;
-            e.target.style.outline = '';
-            e.target.style.backgroundColor = '';
+            e.target.classList.remove('visual-scraper-hover');
           });
 
           document.addEventListener('click', (e) => {
