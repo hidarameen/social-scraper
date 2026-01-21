@@ -12,16 +12,19 @@ import { TwitterScraper } from "./twitter";
 import { InstagramScraper } from "./instagram";
 import { YoutubeScraper } from "./youtube";
 import { TiktokScraper } from "./tiktok";
+import { VisualScraperService } from "./visual-scraper-service";
 
 export class ScraperManager {
   private storage: IStorage;
   private scrapers: Record<string, IScraper>;
   private telegram: TelegramService;
+  private visual: VisualScraperService;
   private interval: NodeJS.Timeout | null = null;
 
   constructor(storage: IStorage) {
     this.storage = storage;
     this.telegram = new TelegramService(storage);
+    this.visual = new VisualScraperService(storage);
     this.scrapers = {
       facebook: new FacebookScraper() as any,
       twitter: new TwitterScraper(),
@@ -73,6 +76,11 @@ export class ScraperManager {
   }
 
   async runTask(task: Task) {
+    if (task.scrapeMethod === "visual" || task.platform === "website") {
+      await this.visual.runTask(task);
+      return;
+    }
+
     const scraper = this.scrapers[task.platform];
     if (!scraper) {
       throw new Error(`No scraper found for platform: ${task.platform}`);
