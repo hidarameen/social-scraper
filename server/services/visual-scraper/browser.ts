@@ -36,26 +36,32 @@ export class BrowserService {
       // Handle cookie consent banners and overlays
       // We will hide them by default for a clean view, but we'll also try to auto-accept
       // to avoid persistent blocking elements
-      await page.evaluate(async () => {
+      await page.evaluate(`(function() {
         const acceptButtons = [
           'accept', 'agree', 'allow', 'consent', 'السماح', 'موافق', 'قبول',
-          'accept all', 'allow all', 'السماح للكل'
+          'accept all', 'allow all', 'السماح للكل', 'accept cookies', 'yes', 'i agree'
         ];
         
-        const findAndClick = () => {
-          const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
-          for (const btn of buttons) {
-            const text = btn.textContent?.toLowerCase().trim();
-            if (text && acceptButtons.some(b => text.includes(b))) {
-              (btn as HTMLElement).click();
-              return true;
+        const findAndClick = function() {
+          const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"], span'));
+          let clicked = false;
+          for (let i = 0; i < buttons.length; i++) {
+            const btn = buttons[i];
+            const text = btn.textContent ? btn.textContent.toLowerCase().trim() : "";
+            if (text && acceptButtons.some(function(b) { return text === b || text.indexOf(b) !== -1; })) {
+              try {
+                (btn as HTMLElement).click();
+                clicked = true;
+              } catch(e) {}
             }
           }
-          return false;
+          return clicked;
         };
 
+        // Try multiple times as some banners load late
         findAndClick();
-      });
+        setTimeout(findAndClick, 2000);
+      })()`);
 
       const selectorsToHide = [
         '#onetrust-consent-sdk',
@@ -67,28 +73,54 @@ export class BrowserService {
         '[id*="modal"]',
         '[class*="modal"]',
         '[id*="overlay"]',
-        '[class*="overlay"]'
+        '[class*="overlay"]',
+        '.tp-modal',
+        '.tp-backdrop'
       ];
       
-      await page.evaluate((selectors) => {
-        selectors.forEach(sel => {
-          const elements = document.querySelectorAll(sel);
-          elements.forEach(el => {
-            (el as HTMLElement).style.display = 'none';
-            (el as HTMLElement).style.pointerEvents = 'none';
+      await page.evaluate(`(function(selectors) {
+        const hide = function() {
+          selectors.forEach(function(sel) {
+            const elements = document.querySelectorAll(sel);
+            elements.forEach(function(el) {
+              el.style.setProperty('display', 'none', 'important');
+              el.style.setProperty('visibility', 'hidden', 'important');
+              el.style.setProperty('pointer-events', 'none', 'important');
+              el.style.setProperty('opacity', '0', 'important');
+            });
           });
-        });
-        // Reset body overflow if hidden by a modal
-        document.body.style.overflow = 'auto';
-        document.body.style.position = 'static';
+          // Reset body/html overflow if hidden by a modal
+          [document.body, document.documentElement].forEach(el => {
+            el.style.setProperty('overflow', 'auto', 'important');
+            el.style.setProperty('position', 'static', 'important');
+            el.style.setProperty('height', 'auto', 'important');
+          });
+        };
         
-        // Fix relative images and links if needed (though <base> tag usually handles this)
-        // This is a backup for elements that might not respect <base>
-        document.querySelectorAll('img[src^="/"]').forEach(img => {
-          const src = img.getAttribute('src');
-          if (src) img.setAttribute('src', new URL(src, window.location.href).href);
-        });
-      }, selectorsToHide);
+        hide();
+        // Periodically check for reappearing overlays
+        setInterval(hide, 1000);
+        
+        // Fix relative images and links to use absolute URLs
+        const fixUrls = function() {
+          const baseUrl = window.location.origin + window.location.pathname;
+          document.querySelectorAll('img[src], a[href], link[href], script[src]').forEach(el => {
+            if (el.tagName === 'IMG' || el.tagName === 'SCRIPT') {
+              const attr = el.tagName === 'IMG' ? 'src' : 'src';
+              const val = el.getAttribute(attr);
+              if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:')) {
+                el.setAttribute(attr, new URL(val, baseUrl).href);
+              }
+            } else {
+              const val = el.getAttribute('href');
+              if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('mailto:') && !val.startsWith('tel:') && !val.startsWith('#')) {
+                el.setAttribute('href', new URL(val, baseUrl).href);
+              }
+            }
+          });
+        };
+        fixUrls();
+      })(${JSON.stringify(selectorsToHide)})`);
 
       // Wait for a bit to let dynamic content load
       await page.waitForTimeout(5000);

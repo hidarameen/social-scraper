@@ -75,6 +75,7 @@ export class PickerService {
             e.target.classList.remove('visual-scraper-hover');
           });
 
+          // Prevent links from navigating in selection mode and handle dynamic pathing
           document.addEventListener('click', (e) => {
             if (mode !== 'select') return;
             e.preventDefault();
@@ -86,6 +87,19 @@ export class PickerService {
               selector: selector,
               text: e.target.textContent.trim()
             }, '*');
+          }, true);
+
+          // Handle navigation inside the picker by notifying the parent
+          document.addEventListener('click', (e) => {
+            if (mode === 'select') return;
+            const link = e.target.closest('a');
+            if (link && link.href) {
+              e.preventDefault();
+              window.parent.postMessage({
+                type: 'NAVIGATE',
+                url: link.href
+              }, '*');
+            }
           });
 
           function getSelector(el) {
