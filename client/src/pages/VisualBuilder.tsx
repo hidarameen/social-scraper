@@ -24,11 +24,12 @@ export default function VisualBuilder() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const handleLoadUrl = async () => {
-    if (!url) return;
+  const handleLoadUrl = async (navigateUrl?: string) => {
+    const targetUrl = navigateUrl || url;
+    if (!targetUrl) return;
     setLoading(true);
     try {
-      const res = await apiRequest("POST", "/api/visual-proxy", { url });
+      const res = await apiRequest("POST", "/api/visual-proxy", { url: targetUrl });
       const { content } = await res.json();
       setPreviewContent(content);
     } catch (e: any) {
@@ -44,11 +45,14 @@ export default function VisualBuilder() {
         setSelectors(prev => ({ ...prev, [activeField]: event.data.selector }));
         setMode("idle");
         setActiveField(null);
+      } else if (event.data.type === "NAVIGATE" && event.data.url) {
+        setUrl(event.data.url);
+        handleLoadUrl(event.data.url);
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [activeField]);
+  }, [activeField, url]);
 
   useEffect(() => {
     if (iframeRef.current?.contentWindow) {
