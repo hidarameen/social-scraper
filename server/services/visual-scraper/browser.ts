@@ -31,7 +31,22 @@ export class BrowserService {
         const base = document.createElement('base');
         base.href = baseUrl;
         document.head.prepend(base);
+        
+        // Disable CSP if possible to allow cross-origin scripts/styles
+        const meta = document.createElement('meta');
+        meta.httpEquiv = "Content-Security-Policy";
+        meta.content = "default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; style-src * 'unsafe-inline';";
+        document.head.appendChild(meta);
       }, url);
+
+      // Add script to prevent navigation loops and handle errors
+      await page.addInitScript(() => {
+        window.addEventListener('error', (e) => {
+          if (e.message.includes('reCAPTCHA') || e.message.includes('cloudflare')) {
+            console.warn('Security challenge detected:', e.message);
+          }
+        });
+      });
 
       // Handle cookie consent banners and overlays
       // We will hide them by default for a clean view, but we'll also try to auto-accept
@@ -61,6 +76,7 @@ export class BrowserService {
         // Try multiple times as some banners load late
         findAndClick();
         setTimeout(findAndClick, 2000);
+        setTimeout(findAndClick, 5000);
       })()`);
 
       const selectorsToHide = [
@@ -75,7 +91,14 @@ export class BrowserService {
         '[id*="overlay"]',
         '[class*="overlay"]',
         '.tp-modal',
-        '.tp-backdrop'
+        '.tp-backdrop',
+        '#sp_message_container',
+        '.qc-cmp2-container',
+        '.fc-consent-root',
+        '.aad-banner',
+        '.reCAPTCHA',
+        'iframe[src*="recaptcha"]',
+        '.grecaptcha-badge'
       ];
       
       await page.evaluate(`(function(selectors) {
@@ -87,13 +110,16 @@ export class BrowserService {
               el.style.setProperty('visibility', 'hidden', 'important');
               el.style.setProperty('pointer-events', 'none', 'important');
               el.style.setProperty('opacity', '0', 'important');
+              el.style.setProperty('z-index', '-1', 'important');
             });
           });
           // Reset body/html overflow if hidden by a modal
           [document.body, document.documentElement].forEach(el => {
-            el.style.setProperty('overflow', 'auto', 'important');
-            el.style.setProperty('position', 'static', 'important');
-            el.style.setProperty('height', 'auto', 'important');
+            if (el) {
+              el.style.setProperty('overflow', 'auto', 'important');
+              el.style.setProperty('position', 'static', 'important');
+              el.style.setProperty('height', 'auto', 'important');
+            }
           });
         };
         
@@ -103,23 +129,36 @@ export class BrowserService {
         
         // Fix relative images and links to use absolute URLs
         const fixUrls = function() {
-          const baseUrl = window.location.origin + window.location.pathname;
+          const origin = window.location.origin;
+          const currentPath = window.location.pathname;
+          
           document.querySelectorAll('img[src], a[href], link[href], script[src]').forEach(el => {
-            if (el.tagName === 'IMG' || el.tagName === 'SCRIPT') {
-              const attr = el.tagName === 'IMG' ? 'src' : 'src';
-              const val = el.getAttribute(attr);
-              if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:')) {
-                el.setAttribute(attr, new URL(val, baseUrl).href);
-              }
-            } else {
-              const val = el.getAttribute('href');
-              if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('mailto:') && !val.startsWith('tel:') && !val.startsWith('#')) {
-                el.setAttribute('href', new URL(val, baseUrl).href);
-              }
+            const attr = (el.tagName === 'IMG' || el.tagName === 'SCRIPT') ? 'src' : 'href';
+            const val = el.getAttribute(attr);
+            if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:') && !val.startsWith('mailto:') && !val.startsWith('tel:') && !val.startsWith('#')) {
+              try {
+                if (val.startsWith('/')) {
+                  el.setAttribute(attr, origin + val);
+                } else {
+                  const dir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+                  el.setAttribute(attr, origin + dir + val);
+                }
+              } catch(e) {}
+            }
+          });
+          
+          // Fix background images
+          document.querySelectorAll('[style*="url("]').forEach(el => {
+            const style = el.getAttribute('style');
+            if (style && style.includes('url(/')) {
+              el.setAttribute('style', style.replace(/url\\((\\/)/g, 'url(' + origin + '$1'));
             }
           });
         };
         fixUrls();
+        // MutationObserver to fix lazy-loaded content
+        const observer = new MutationObserver(fixUrls);
+        observer.observe(document.body, { childList: true, subtree: true });
       })(${JSON.stringify(selectorsToHide)})`);
 
       // Wait for a bit to let dynamic content load

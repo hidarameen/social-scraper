@@ -49,6 +49,9 @@ export async function registerRoutes(
     const { url } = req.body;
     try {
       const content = await pickerService.getProxyContent(url);
+      // Add headers to help with framing and security
+      res.setHeader('X-Frame-Options', 'ALLOWALL');
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.json({ content });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
