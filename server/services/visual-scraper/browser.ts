@@ -69,8 +69,8 @@ export class BrowserService {
       // We will only do absolute URL fixing which is safer.
 
       // Add script to fix relative URLs without breaking React state
-      await page.evaluate(() => {
-        const fixUrls = () => {
+      await page.evaluate(`(function() {
+        const fixUrls = function() {
           const origin = window.location.origin;
           document.querySelectorAll('img[src], a[href], link[href]').forEach(el => {
             const attr = el.tagName === 'IMG' ? 'src' : 'href';
@@ -86,7 +86,7 @@ export class BrowserService {
         fixUrls();
         const observer = new MutationObserver(fixUrls);
         observer.observe(document.body, { childList: true, subtree: true });
-      });
+      })()`);
 
       // Wait for a bit to let dynamic content (GraphQL/React) settle
       await page.waitForTimeout(8000);
