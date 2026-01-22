@@ -75,14 +75,9 @@ export class BrowserService {
       // Check for Cloudflare/Security challenges
       const content_lower = (await page.content()).toLowerCase();
       if (content_lower.includes('cloudflare') || content_lower.includes('verify you are human')) {
-        console.log('[Browser] Cloudflare detected, attempting solve...');
-        // Wait longer and try to solve simple checkbox if present
-        await page.waitForTimeout(5000);
-        const frame = page.frames().find(f => f.url().includes('cloudflare'));
-        if (frame) {
-          const box = await frame.$('input[type="checkbox"]');
-          if (box) await box.click();
-        }
+        console.log('[Browser] Security challenge detected, allowing manual interaction...');
+        // Wait longer to let user solve it if we were in a real-time session,
+        // but since this is a proxy, we need to ensure the challenge is rendered.
         await page.waitForTimeout(5000);
       }
       
@@ -109,56 +104,12 @@ export class BrowserService {
       });
 
       // Handle cookie consent banners and overlays
-      // We will hide them by default for a clean view, but we'll also try to auto-accept
-      // to avoid persistent blocking elements
-      await page.evaluate(`(function() {
-        const acceptButtons = [
-          'accept', 'agree', 'allow', 'consent', 'السماح', 'موافق', 'قبول',
-          'accept all', 'allow all', 'السماح للكل', 'accept cookies', 'yes', 'i agree'
-        ];
-        
-        const findAndClick = function() {
-          const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"], span'));
-          let clicked = false;
-          for (let i = 0; i < buttons.length; i++) {
-            const btn = buttons[i];
-            const text = btn.textContent ? btn.textContent.toLowerCase().trim() : "";
-            if (text && acceptButtons.some(function(b) { return text === b || text.indexOf(b) !== -1; })) {
-              try {
-                btn.click();
-                clicked = true;
-              } catch(e) {}
-            }
-          }
-          return clicked;
-        };
-
-        // Try multiple times as some banners load late
-        findAndClick();
-        setTimeout(findAndClick, 2000);
-        setTimeout(findAndClick, 5000);
-      })()`);
-
-      const selectorsToHide = [
-        '#onetrust-consent-sdk',
-        '.onetrust-pc-dark-filter',
-        '[id*="consent"]',
-        '[class*="consent"]',
-        '[id*="cookie"]',
-        '[class*="cookie"]',
-        '[id*="modal"]',
-        '[class*="modal"]',
-        '[id*="overlay"]',
-        '[class*="overlay"]',
-        '.tp-modal',
-        '.tp-backdrop',
-        '#sp_message_container',
-        '.qc-cmp2-container',
-        '.fc-consent-root',
-        '.aad-banner',
-        '.reCAPTCHA',
-        'iframe[src*="recaptcha"]',
-        '.grecaptcha-badge'
+      // We will no longer auto-click them to allow manual interaction as requested,
+      // but we still keep the hide function ready if needed via user action.
+      // For now, we just inject the fixUrls logic.
+      
+      const selectorsToHide: string[] = [
+        // Keeping it empty or minimal to allow manual interaction
       ];
       
       await page.evaluate(`(function(selectors) {
@@ -289,14 +240,9 @@ export class BrowserService {
       // Check for Cloudflare/Security challenges
       const content_lower = (await page.content()).toLowerCase();
       if (content_lower.includes('cloudflare') || content_lower.includes('verify you are human')) {
-        console.log('[Browser] Cloudflare detected, attempting solve...');
-        // Wait longer and try to solve simple checkbox if present
-        await page.waitForTimeout(5000);
-        const frame = page.frames().find(f => f.url().includes('cloudflare'));
-        if (frame) {
-          const box = await frame.$('input[type="checkbox"]');
-          if (box) await box.click();
-        }
+        console.log('[Browser] Security challenge detected, allowing manual interaction...');
+        // Wait longer to let user solve it if we were in a real-time session,
+        // but since this is a proxy, we need to ensure the challenge is rendered.
         await page.waitForTimeout(5000);
       }
       await page.waitForTimeout(5000);
