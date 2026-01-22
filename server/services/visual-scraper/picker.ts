@@ -103,17 +103,36 @@ export class PickerService {
           });
 
           function getSelector(el) {
+            // Smart content detection: if clicking a paragraph, try to find the container
+            if (el.tagName === 'P' || el.tagName === 'SPAN') {
+              const parent = el.parentElement;
+              if (parent && parent.querySelectorAll('p').length > 1) {
+                el = parent;
+              }
+            }
+
             if (el.id) return '#' + el.id;
             
-            // Try to find a unique class
+            // List detection: find a class that repeats across similar elements
             if (el.classList.length > 0) {
-              for (const className of el.classList) {
+              const classes = Array.from(el.classList).filter(c => !c.includes('visual-scraper'));
+              
+              // First, check for common repeating classes (lists/cards)
+              for (const className of classes) {
+                const count = document.querySelectorAll('.' + className).length;
+                if (count > 1 && count < 50) {
+                  return '.' + className;
+                }
+              }
+
+              // Fallback to unique class
+              for (const className of classes) {
                 if (document.querySelectorAll('.' + className).length === 1) {
                   return '.' + className;
                 }
               }
             }
-
+            
             let path = [];
             while (el.nodeType === Node.ELEMENT_NODE) {
               let selector = el.nodeName.toLowerCase();
