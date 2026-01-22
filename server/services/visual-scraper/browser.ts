@@ -70,17 +70,37 @@ export class BrowserService {
       await page.evaluate(`(function() {
         const fixUrls = function() {
           const origin = window.location.origin;
-          document.querySelectorAll('img[src], a[href], link[href]').forEach(el => {
-            const attr = el.tagName === 'IMG' ? 'src' : 'href';
-            const val = el.getAttribute(attr);
-            if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:')) {
-              try {
-                const absolute = new URL(val, origin).href;
-                el.setAttribute(attr, absolute);
-              } catch(e) {}
+          
+          // Fix src, href, and srcset
+          document.querySelectorAll('img, a, link, source').forEach(el => {
+            ['src', 'href', 'srcset'].forEach(attr => {
+              const val = el.getAttribute(attr);
+              if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:')) {
+                try {
+                  // Handle srcset which can have multiple URLs
+                  if (attr === 'srcset') {
+                    const fixed = val.split(',').map(part => {
+                      const [url, size] = part.trim().split(/\\s+/);
+                      return new URL(url, origin).href + (size ? ' ' + size : '');
+                    }).join(', ');
+                    el.setAttribute(attr, fixed);
+                  } else {
+                    el.setAttribute(attr, new URL(val, origin).href);
+                  }
+                } catch(e) {}
+              }
+            });
+          });
+
+          // Fix inline background images
+          document.querySelectorAll('[style*="url("]').forEach(el => {
+            const style = el.getAttribute('style');
+            if (style && style.includes('url(') && !style.includes('url(http') && !style.includes('url(//') && !style.includes('url(data:')) {
+              el.setAttribute('style', style.replace(/url\\(['"]?(\\/[^'"]+)['"]?\\)/g, 'url(' + origin + '$1)'));
             }
           });
         };
+        
         fixUrls();
         const observer = new MutationObserver(fixUrls);
         observer.observe(document.body, { childList: true, subtree: true });
