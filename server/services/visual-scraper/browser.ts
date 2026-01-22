@@ -19,12 +19,49 @@ export class BrowserService {
   async getPageContent(url: string, userAgent?: string) {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
-      userAgent: userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      userAgent: userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 1,
+      hasTouch: false,
+      extraHTTPHeaders: {
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+      }
     });
     const page = await context.newPage();
     
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      // Set extra headers and cookies to appear more human
+      await context.addCookies([
+        {
+          name: 'cf_clearance',
+          value: 'manual_bypass_placeholder',
+          domain: new URL(url).hostname,
+          path: '/',
+          expires: Math.floor(Date.now() / 1000) + 3600
+        }
+      ]);
+
+      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      
+      // Check for Cloudflare/Security challenges
+      const content_lower = (await page.content()).toLowerCase();
+      if (content_lower.includes('cloudflare') || content_lower.includes('verify you are human')) {
+        console.log('[Browser] Cloudflare detected, attempting solve...');
+        // Wait longer and try to solve simple checkbox if present
+        await page.waitForTimeout(5000);
+        const frame = page.frames().find(f => f.url().includes('cloudflare'));
+        if (frame) {
+          const box = await frame.$('input[type="checkbox"]');
+          if (box) await box.click();
+        }
+        await page.waitForTimeout(5000);
+      }
       
       // Inject base URL to help resolving relative paths in the proxy
       await page.evaluate((baseUrl) => {
@@ -173,12 +210,49 @@ export class BrowserService {
   async getVisualData(url: string, selectors: { title: string; content?: string; image?: string; link?: string }, userAgent?: string) {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
-      userAgent: userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      userAgent: userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 1,
+      hasTouch: false,
+      extraHTTPHeaders: {
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+      }
     });
     const page = await context.newPage();
     
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      // Set extra headers and cookies to appear more human
+      await context.addCookies([
+        {
+          name: 'cf_clearance',
+          value: 'manual_bypass_placeholder',
+          domain: new URL(url).hostname,
+          path: '/',
+          expires: Math.floor(Date.now() / 1000) + 3600
+        }
+      ]);
+
+      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      
+      // Check for Cloudflare/Security challenges
+      const content_lower = (await page.content()).toLowerCase();
+      if (content_lower.includes('cloudflare') || content_lower.includes('verify you are human')) {
+        console.log('[Browser] Cloudflare detected, attempting solve...');
+        // Wait longer and try to solve simple checkbox if present
+        await page.waitForTimeout(5000);
+        const frame = page.frames().find(f => f.url().includes('cloudflare'));
+        if (frame) {
+          const box = await frame.$('input[type="checkbox"]');
+          if (box) await box.click();
+        }
+        await page.waitForTimeout(5000);
+      }
       await page.waitForTimeout(5000);
       
       const results = await page.evaluate((sel) => {
