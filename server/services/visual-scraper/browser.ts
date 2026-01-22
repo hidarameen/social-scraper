@@ -87,10 +87,19 @@ export class BrowserService {
         base.href = baseUrl;
         document.head.prepend(base);
         
-        // Disable CSP if possible to allow cross-origin scripts/styles
+        // Remove existing CSP meta tags that might block challenges
+        document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').forEach(el => el.remove());
+
+        // Relax CSP to allow all necessary domains for challenges
         const meta = document.createElement('meta');
         meta.httpEquiv = "Content-Security-Policy";
-        meta.content = "default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; style-src * 'unsafe-inline';";
+        meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+                      "script-src * 'unsafe-inline' 'unsafe-eval'; " +
+                      "connect-src * 'unsafe-inline'; " +
+                      "img-src * data: blob: 'unsafe-inline'; " +
+                      "style-src * 'unsafe-inline'; " +
+                      "frame-src *; " +
+                      "child-src *;";
         document.head.appendChild(meta);
       }, url);
 
