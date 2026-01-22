@@ -57,132 +57,39 @@ export class BrowserService {
         }
       ]);
 
-      // Use domcontentloaded for faster loading of the main content, 
-      // then wait for networkidle for a short burst to get dynamic elements
+      // Handle navigation and state
       try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-        // After DOM is loaded, wait for network to settle for a bit, but with a short timeout
-        // to avoid hanging on persistent trackers or heavy ads
-        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {
-          console.log('[Browser] Network didn\'t reach idle, continuing with DOM content');
-        });
+        await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
       } catch (gotoErr: any) {
-        console.warn(`[Browser] Initial navigation timed out or failed, trying fallback: ${gotoErr.message}`);
-        // If it failed, try one more time with very basic settings
-        await page.goto(url, { waitUntil: "commit", timeout: 20000 });
+        console.warn(`[Browser] Initial navigation timed out, trying domcontentloaded: ${gotoErr.message}`);
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
       }
       
-      // Check for Cloudflare/Security challenges
-      const content_lower = (await page.content()).toLowerCase();
-      if (content_lower.includes('cloudflare') || content_lower.includes('verify you are human')) {
-        console.log('[Browser] Security challenge detected, allowing manual interaction...');
-        // Wait longer to let user solve it if we were in a real-time session,
-        // but since this is a proxy, we need to ensure the challenge is rendered.
-        await page.waitForTimeout(5000);
-      }
-      
-      // Inject base URL to help resolving relative paths in the proxy
-      await page.evaluate((baseUrl) => {
-        const base = document.createElement('base');
-        base.href = baseUrl;
-        document.head.prepend(base);
-        
-        // Remove existing CSP meta tags that might block challenges
-        document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').forEach(el => el.remove());
+      // We will NO LONGER inject a base tag or modify CSP via JS if it's breaking SPA integrity.
+      // We will only do absolute URL fixing which is safer.
 
-        // Relax CSP to allow all necessary domains for challenges
-        const meta = document.createElement('meta');
-        meta.httpEquiv = "Content-Security-Policy";
-        meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-                      "script-src * 'unsafe-inline' 'unsafe-eval'; " +
-                      "connect-src * 'unsafe-inline'; " +
-                      "img-src * data: blob: 'unsafe-inline'; " +
-                      "style-src * 'unsafe-inline'; " +
-                      "frame-src *; " +
-                      "child-src *;";
-        document.head.appendChild(meta);
-      }, url);
-
-      // Add script to prevent navigation loops and handle errors
-      await page.addInitScript(() => {
-        window.addEventListener('error', (e) => {
-          if (e.message.includes('reCAPTCHA') || e.message.includes('cloudflare')) {
-            console.warn('Security challenge detected:', e.message);
-          }
-        });
-      });
-
-      // Handle cookie consent banners and overlays
-      // We will no longer auto-click them to allow manual interaction as requested,
-      // but we still keep the hide function ready if needed via user action.
-      // For now, we just inject the fixUrls logic.
-      
-      const selectorsToHide: string[] = [
-        // Keeping it empty or minimal to allow manual interaction
-      ];
-      
-      await page.evaluate(`(function(selectors) {
-        const hide = function() {
-          selectors.forEach(function(sel) {
-            const elements = document.querySelectorAll(sel);
-            elements.forEach(function(el) {
-              el.style.setProperty('display', 'none', 'important');
-              el.style.setProperty('visibility', 'hidden', 'important');
-              el.style.setProperty('pointer-events', 'none', 'important');
-              el.style.setProperty('opacity', '0', 'important');
-              el.style.setProperty('z-index', '-1', 'important');
-            });
-          });
-          // Reset body/html overflow if hidden by a modal
-          [document.body, document.documentElement].forEach(el => {
-            if (el) {
-              el.style.setProperty('overflow', 'auto', 'important');
-              el.style.setProperty('position', 'static', 'important');
-              el.style.setProperty('height', 'auto', 'important');
-            }
-          });
-        };
-        
-        hide();
-        // Periodically check for reappearing overlays
-        setInterval(hide, 1000);
-        
-        // Fix relative images and links to use absolute URLs
-        const fixUrls = function() {
+      // Add script to fix relative URLs without breaking React state
+      await page.evaluate(() => {
+        const fixUrls = () => {
           const origin = window.location.origin;
-          const currentPath = window.location.pathname;
-          
-          document.querySelectorAll('img[src], a[href], link[href], script[src]').forEach(el => {
-            const attr = (el.tagName === 'IMG' || el.tagName === 'SCRIPT') ? 'src' : 'href';
+          document.querySelectorAll('img[src], a[href], link[href]').forEach(el => {
+            const attr = el.tagName === 'IMG' ? 'src' : 'href';
             const val = el.getAttribute(attr);
-            if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:') && !val.startsWith('mailto:') && !val.startsWith('tel:') && !val.startsWith('#')) {
+            if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:')) {
               try {
-                if (val.startsWith('/')) {
-                  el.setAttribute(attr, origin + val);
-                } else {
-                  const dir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-                  el.setAttribute(attr, origin + dir + val);
-                }
+                const absolute = new URL(val, origin).href;
+                el.setAttribute(attr, absolute);
               } catch(e) {}
-            }
-          });
-          
-          // Fix background images
-          document.querySelectorAll('[style*="url("]').forEach(el => {
-            const style = el.getAttribute('style');
-            if (style && style.includes('url(/')) {
-              el.setAttribute('style', style.replace(/url\\((\\/)/g, 'url(' + origin + '$1'));
             }
           });
         };
         fixUrls();
-        // MutationObserver to fix lazy-loaded content
         const observer = new MutationObserver(fixUrls);
         observer.observe(document.body, { childList: true, subtree: true });
-      })(${JSON.stringify(selectorsToHide)})`);
+      });
 
-      // Wait for a bit to let dynamic content load
-      await page.waitForTimeout(5000);
+      // Wait for a bit to let dynamic content (GraphQL/React) settle
+      await page.waitForTimeout(8000);
       const content = await page.content();
       return content;
     } finally {
