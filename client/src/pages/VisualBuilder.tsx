@@ -24,15 +24,24 @@ export default function VisualBuilder() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  const [logs, setLogs] = useState<{msg: string, type: 'info' | 'error' | 'success'}[]>([]);
+
+  const addLog = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setLogs(prev => [...prev, { msg: `[${new Date().toLocaleTimeString()}] ${msg}`, type }]);
+  };
+
   const handleLoadUrl = async (navigateUrl?: string) => {
     const targetUrl = navigateUrl || url;
     if (!targetUrl) return;
     setLoading(true);
+    addLog(`Starting load for: ${targetUrl}`, 'info');
     try {
       const res = await apiRequest("POST", "/api/visual-proxy", { url: targetUrl });
       const { content } = await res.json();
       setPreviewContent(content);
+      addLog(`Successfully loaded content from ${new URL(targetUrl).hostname}`, 'success');
     } catch (e: any) {
+      addLog(`Failed to load site: ${e.message}`, 'error');
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -147,6 +156,27 @@ export default function VisualBuilder() {
                 <Button className="w-full mt-4" onClick={handleSave} disabled={!selectors.title || loading}>
                   <Save className="h-4 w-4 mr-2" /> Save Scraper
                 </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-panel overflow-hidden flex flex-col h-48">
+              <CardHeader className="py-2 border-b">
+                <CardTitle className="text-xs font-medium flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Live Activity Logs
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-2 overflow-y-auto font-mono text-[10px] space-y-1">
+                {logs.length === 0 && <div className="text-muted-foreground italic text-center py-4">Waiting for activity...</div>}
+                {logs.map((log, i) => (
+                  <div key={i} className={`break-words ${
+                    log.type === 'error' ? 'text-red-400' : 
+                    log.type === 'success' ? 'text-green-400' : 
+                    'text-blue-300'
+                  }`}>
+                    {log.msg}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>
