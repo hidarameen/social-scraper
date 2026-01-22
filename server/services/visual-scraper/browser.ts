@@ -47,7 +47,20 @@ export class BrowserService {
         }
       ]);
 
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      // Use domcontentloaded for faster loading of the main content, 
+      // then wait for networkidle for a short burst to get dynamic elements
+      try {
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+        // After DOM is loaded, wait for network to settle for a bit, but with a short timeout
+        // to avoid hanging on persistent trackers or heavy ads
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {
+          console.log('[Browser] Network didn\'t reach idle, continuing with DOM content');
+        });
+      } catch (gotoErr: any) {
+        console.warn(`[Browser] Initial navigation timed out or failed, trying fallback: ${gotoErr.message}`);
+        // If it failed, try one more time with very basic settings
+        await page.goto(url, { waitUntil: "commit", timeout: 20000 });
+      }
       
       // Check for Cloudflare/Security challenges
       const content_lower = (await page.content()).toLowerCase();
@@ -238,7 +251,20 @@ export class BrowserService {
         }
       ]);
 
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      // Use domcontentloaded for faster loading of the main content, 
+      // then wait for networkidle for a short burst to get dynamic elements
+      try {
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+        // After DOM is loaded, wait for network to settle for a bit, but with a short timeout
+        // to avoid hanging on persistent trackers or heavy ads
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {
+          console.log('[Browser] Network didn\'t reach idle, continuing with DOM content');
+        });
+      } catch (gotoErr: any) {
+        console.warn(`[Browser] Initial navigation timed out or failed, trying fallback: ${gotoErr.message}`);
+        // If it failed, try one more time with very basic settings
+        await page.goto(url, { waitUntil: "commit", timeout: 20000 });
+      }
       
       // Check for Cloudflare/Security challenges
       const content_lower = (await page.content()).toLowerCase();
