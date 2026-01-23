@@ -124,7 +124,7 @@ export class BrowserService {
       // Wait for a bit to let dynamic content (GraphQL/React) settle
       await page.waitForTimeout(8000);
       
-      const sections = await page.evaluate(() => window.__extractedSections || []);
+      const sections = await page.evaluate(() => (window as any).__extractedSections || []);
       const content = await page.content();
       
       return { content, sections };

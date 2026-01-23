@@ -81,7 +81,8 @@ export class PickerService {
             e.preventDefault();
             e.stopPropagation();
 
-            const selector = getSelector(e.target);
+            const target = e.target;
+            const selector = getSelector(target);
             window.parent.postMessage({
               type: 'ELEMENT_SELECTED',
               selector: selector,
@@ -169,6 +170,6 @@ export class PickerService {
         })();
       </script>
     `;
-    return content + injectedScript;
+    return { content: content + injectedScript, sections };
   }
 }
