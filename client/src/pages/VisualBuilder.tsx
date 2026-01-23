@@ -20,6 +20,7 @@ export default function VisualBuilder() {
     link: ""
   });
   const [activeField, setActiveField] = useState<keyof typeof selectors | null>(null);
+  const [autoSections, setAutoSections] = useState<{text: string, href: string}[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -37,8 +38,9 @@ export default function VisualBuilder() {
     addLog(`Starting load for: ${targetUrl}`, 'info');
     try {
       const res = await apiRequest("POST", "/api/visual-proxy", { url: targetUrl });
-      const { content } = await res.json();
+      const { content, sections } = await res.json();
       setPreviewContent(content);
+      if (sections) setAutoSections(sections);
       addLog(`Successfully loaded content from ${new URL(targetUrl).hostname}`, 'success');
     } catch (e: any) {
       addLog(`Failed to load site: ${e.message}`, 'error');
@@ -127,6 +129,32 @@ export default function VisualBuilder() {
                 </div>
               </CardContent>
             </Card>
+
+            {autoSections.length > 0 && (
+              <Card className="glass-panel overflow-hidden flex flex-col max-h-64">
+                <CardHeader className="py-2 border-b">
+                  <CardTitle className="text-xs font-medium flex items-center gap-2">
+                    <Globe className="h-3 w-3" />
+                    تم اكتشاف الأقسام تلقائياً
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 overflow-y-auto space-y-1">
+                  {autoSections.map((section, i) => (
+                    <Button 
+                      key={i} 
+                      variant="ghost" 
+                      className="w-full justify-start text-[10px] h-7 px-2"
+                      onClick={() => {
+                        setUrl(section.href);
+                        handleLoadUrl(section.href);
+                      }}
+                    >
+                      {section.text}
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="glass-panel flex-1">
               <CardHeader>

@@ -77,7 +77,6 @@ export class BrowserService {
               const val = el.getAttribute(attr);
               if (val && !val.startsWith('http') && !val.startsWith('//') && !val.startsWith('data:')) {
                 try {
-                  // Handle srcset which can have multiple URLs
                   if (attr === 'srcset') {
                     const fixed = val.split(',').map(part => {
                       const [url, size] = part.trim().split(/\\s+/);
@@ -101,15 +100,34 @@ export class BrowserService {
           });
         };
         
+        // Auto-extract sections logic
+        const extractSections = function() {
+          const sections = [];
+          document.querySelectorAll('nav a, header a, footer a, [class*="menu"] a, [class*="nav"] a').forEach(a => {
+            const text = a.textContent.trim();
+            const href = a.href;
+            if (text && href && href.startsWith(window.location.origin) && text.length < 30) {
+              if (!sections.find(s => s.href === href)) {
+                sections.push({ text, href });
+              }
+            }
+          });
+          window.__extractedSections = sections;
+        };
+        
         fixUrls();
-        const observer = new MutationObserver(fixUrls);
+        extractSections();
+        const observer = new MutationObserver(() => { fixUrls(); extractSections(); });
         observer.observe(document.body, { childList: true, subtree: true });
       })()`);
 
       // Wait for a bit to let dynamic content (GraphQL/React) settle
       await page.waitForTimeout(8000);
+      
+      const sections = await page.evaluate(() => window.__extractedSections || []);
       const content = await page.content();
-      return content;
+      
+      return { content, sections };
     } finally {
       await browser.close();
     }

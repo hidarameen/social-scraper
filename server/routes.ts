@@ -48,12 +48,12 @@ export async function registerRoutes(
   app.post("/api/visual-proxy", isAuthenticated, async (req: any, res) => {
     const { url } = req.body;
     try {
-      const content = await pickerService.getProxyContent(url);
+      const { content, sections } = await pickerService.getProxyContent(url);
       // Add headers to help with framing and security
       res.setHeader('X-Frame-Options', 'ALLOWALL');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; style-src * 'unsafe-inline'; frame-src *; child-src *; connect-src *;");
-      res.json({ content });
+      res.json({ content, sections });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

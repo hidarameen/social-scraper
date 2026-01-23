@@ -8,7 +8,7 @@ export class PickerService {
   }
 
   async getProxyContent(url: string) {
-    const content = await this.browserService.getPageContent(url);
+    const { content, sections } = await this.browserService.getPageContent(url);
     // Inject scripts for element selection and style improvements
     const injectedScript = `
       <style>
@@ -103,11 +103,24 @@ export class PickerService {
           });
 
           function getSelector(el) {
-            // Smart content detection: if clicking a paragraph, try to find the container
+            // Smart link detection: if clicking inside an <a>, prioritize the link
+            const nearestLink = el.closest('a');
+            if (nearestLink && (el.tagName === 'IMG' || el.tagName.match(/^H[1-6]$/))) {
+              el = nearestLink;
+            }
+
+            // Smart content detection: if clicking a paragraph or span, 
+            // look up for a container that holds multiple paragraphs or significant text
             if (el.tagName === 'P' || el.tagName === 'SPAN') {
-              const parent = el.parentElement;
-              if (parent && parent.querySelectorAll('p').length > 1) {
-                el = parent;
+              let current = el;
+              for (let i = 0; i < 3; i++) {
+                const parent = current.parentElement;
+                if (parent && (parent.querySelectorAll('p').length > 1 || parent.textContent.length > 500)) {
+                  el = parent;
+                  break;
+                }
+                current = parent;
+                if (!current || current.tagName === 'BODY') break;
               }
             }
 
